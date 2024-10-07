@@ -54,8 +54,8 @@ public:
 
 private:
     
-    SSL *ssl = nullptr;
-    int client_sock = 0;
+    SSL *ssl = nullptr; //tls
+    int client_sock = 0;//tls or tcp
 
     AliveCheckTimer aliveCheckTimer;
     DiagnosticCallback diag_callback;
