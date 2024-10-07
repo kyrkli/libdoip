@@ -24,47 +24,7 @@ void DoIPConnection::closeSocket() {
     close(client_sock);
     client_sock = 0;
 }
-/*
-void echo_loop() {
-    char rxbuf[128];
-    size_t rxcap = sizeof(rxbuf);
-    int rxlen;
 
-    // Echo loop
-    while (true) {
-        // Get message from client; will fail if client closes connection 
-        if ((rxlen = SSL_read(ssl, rxbuf, rxcap)) <= 0) {
-            if (rxlen == 0) {
-                printf("Client closed connection\n");
-            } else {
-                printf("SSL_read returned %d\n", rxlen);
-            }
-            ERR_print_errors_fp(stderr);
-            break;
-        }
-        // Insure null terminated input
-        rxbuf[rxlen] = 0;
-        // Look for kill switch 
-        if (strcmp(rxbuf, "kill\n") == 0) {
-            // Terminate...with extreme prejudice 
-            printf("Server received 'kill' command\n");
-            //server_running = false;
-            // Cleanup for next client 
-                SSL_shutdown(ssl);
-                SSL_free(ssl);
-                //close(client_skt);
-            printf("Server received 'kill' command\n");
-            break;
-        }
-        // Show received message 
-        printf("Received: %s", rxbuf);
-        // Echo it back 
-        if (SSL_write(ssl, rxbuf, rxlen) <= 0) {
-            ERR_print_errors_fp(stderr);
-        }
-    }
-}
-*/
 int DoIPConnection::receiveTlsMessage() {
     std::cout << "Waiting for DoIP Header..." << std::endl;
     unsigned char genericHeader[_GenericHeaderLength];
@@ -103,7 +63,7 @@ int DoIPConnection::receiveTlsMessage() {
 unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTLS(unsigned long payloadLength, unsigned char *receivedData) {
     unsigned long payloadPos = 0;
     unsigned long remainingPayload = payloadLength;
-
+    
     while(remainingPayload > 0) { 
         int readBytes = SSL_read(ssl, &receivedData[payloadPos], remainingPayload);
         if(readBytes <= 0) {
@@ -246,8 +206,6 @@ int DoIPConnection::reactOnReceivedTcpMessage(GenericHeaderAction action, unsign
             target_address |= ((unsigned short)payload[2]) << 8U;
             target_address |= (unsigned short)payload[3];
             bool ack = notify_application(target_address);
-            std::cout << "target_address = " << target_address << std::endl;
-            std::cout << "routerdClientAddress = " << *routedClientAddress << std::endl;
             if(ack)
                 parseDiagnosticMessage(diag_callback, routedClientAddress, payload, payloadLength);
 
@@ -276,7 +234,7 @@ void DoIPConnection::triggerDisconnection() {
  */
 int DoIPConnection::sendMessage(unsigned char* message, int messageLength) {
     if(ssl == nullptr)
-        return write(client_sock, message, messageLength); //K for tcp
+        return write(client_sock, message, messageLength);
     else
         return SSL_write(ssl, message, messageLength);
     
