@@ -7,10 +7,10 @@ g++ -I/home/kirill/Desktop/work/bthesis/libdoip/libdoipclient/include/ -I/home/k
 g++ -I/home/kirill/Desktop/work/bthesis/libdoip/libdoipclient/include/ -I/home/kirill/Desktop/work/bthesis/libdoip/libdoipcommon/include/ -I/home/kirill/Desktop/work/bthesis/libdoip/libdoipserver/include/ -o testExample exampleDoIPServer.cpp ../libdoipclient/src/* ../libdoipcommon/src/* ../libdoipserver/src/* -lpthread -lssl -lcrypto
 
 #compiling tls client from openssl example
-
 gcc -o sslecho tls_example.c -lssl -lcrypto
 
 #for testing client authentication
+#-CAfile means to verify the server, otherwise only client verification
 openssl s_client -connect localhost:4433 -cert client-cert.pem -key client-key.pem -CAfile ca-cert.pem
 
 

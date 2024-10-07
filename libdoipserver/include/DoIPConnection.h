@@ -52,7 +52,6 @@ public:
 private:
     
     SSL *ssl;
-
     int tcpSocket;
 
     AliveCheckTimer aliveCheckTimer;
