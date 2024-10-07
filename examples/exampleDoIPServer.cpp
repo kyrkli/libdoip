@@ -81,7 +81,7 @@ void listenUdp() {
 void listenTls(){
     server.setupTlsSocket();
 
-    while(true) {
+    //while(true) {
         std::cout << "Waiting for Tls Connection" << std::endl;
         connection = server.waitForTlsConnection();
         std::cout << "A Tls Connection is found!" << std::endl;
@@ -90,6 +90,14 @@ void listenTls(){
 
         //echo loop
         connection->receiveTlsMessage();
+    //}
+}
+
+void listenTlsTcp() {
+    server.setupTlsTcpSocket();
+
+    while(true) {
+        connection = server.waitForTlsTcpConnection();
     }
 }
 
@@ -135,8 +143,6 @@ int main() {
     //server.sendVehicleAnnouncement();
 
     doipReceiver.at(0).join();
-    std::cout << "6" << std::endl;
     doipReceiver.at(1).join();
-    std::cout << "7" << std::endl;
     return 0;
 }

@@ -68,6 +68,31 @@ void configure_context(SSL_CTX *ctx)
     }
 }
 
+void configure_context_client_auth(SSL_CTX *ctx)
+{
+    /* Set the key and cert */
+    if (SSL_CTX_use_certificate_file(ctx, "/home/kirill/Desktop/work/bthesis/libdoip/ca_keys/server-cert.pem", SSL_FILETYPE_PEM) <= 0) {
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    if (SSL_CTX_use_PrivateKey_file(ctx, "/home/kirill/Desktop/work/bthesis/libdoip/ca_keys/server-key.pem", SSL_FILETYPE_PEM) <= 0 ) {
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    // Load CA certificate to verify client
+    if (SSL_CTX_load_verify_locations(ctx, "/home/kirill/Desktop/work/bthesis/libdoip/ca_keys/ca-cert.pem", NULL) <= 0) {
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    // Require client to present a certificate
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
+    // set a limit on the number of certificates between the end-entity and trust-anchor certificates.
+    SSL_CTX_set_verify_depth(ctx, 1);
+}
+
 int tls_driver()
 {
     int sock;
@@ -127,7 +152,7 @@ void DoIPServer::setupTlsSocket() {
 
     ctx = create_context();
     //server-cert.pem and server-key.pem
-    configure_context(ctx);
+    configure_context_client_auth(ctx);
     server_socket_tls_tcp_data = socket(AF_INET, SOCK_STREAM, 0);
     if (server_socket_tls_tcp_data < 0) {
         perror("Unable to create socket");
@@ -160,15 +185,17 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
     //SSL_new() creates a new SSL structure which is needed to hold the data for a TLS/SSL connection. 
     //The new structure inherits the settings of the underlying context ctx: connection method, options, verification settings, timeout settings.    
     SSL *ssl = SSL_new(ctx);
-
     //SSL_set_fd() sets the file descriptor fd as the input/output facility for the TLS/SSL (encrypted) side of ssl. 
     //fd will typically be the socket file descriptor of a network connection.
     SSL_set_fd(ssl, tcpSocket);
 
     //SSL_accept() waits for a TLS/SSL client to initiate the TLS/SSL handshake. 
     //The communication channel must already have been set and assigned to the ssl by setting an underlying BIO.
+    std::cout << "waiting for handshake" << std::endl;
     if (SSL_accept(ssl) <= 0) {
         ERR_print_errors_fp(stderr);
+        std::cout << "error ssl_accept" << std::endl;
+        exit(EXIT_FAILURE);
     }
 
     return std::unique_ptr<DoIPConnection>(new DoIPConnection(ssl, LogicalGatewayAddress));

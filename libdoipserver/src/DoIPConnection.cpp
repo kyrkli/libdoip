@@ -44,6 +44,11 @@ int DoIPConnection::receiveTlsMessage() {
             /* Terminate...with extreme prejudice */
             printf("Server received 'kill' command\n");
             //server_running = false;
+            /* Cleanup for next client */
+                SSL_shutdown(ssl);
+                SSL_free(ssl);
+                //close(client_skt);
+            printf("Server received 'kill' command\n");
             break;
         }
         /* Show received message */
