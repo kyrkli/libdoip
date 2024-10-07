@@ -33,16 +33,17 @@ def connect_DoIP_TLS():
         with context.wrap_socket(sock, server_hostname="127.0.0.1") as ssock:
             # Connect to the DoIP server
             ssock.connect((ssock.server_hostname, 4433))
-            # Prepare a DoIP packet
+
+            # Prepare and send the Routing Activation Request (RAR) packet
+            rar_packet = DoIP(payload_type=0x0005, source_address=0xe80, activation_type=0x00)  # RAR payload type is 0x0005
+            ssock.send(bytes(rar_packet))
+
+            # Prepare and send the DoIP diagnostic message packet
             pkt = DoIP(payload_type=0x8001, source_address=0xe80, target_address=0x1000) / UDS() / UDS_RDBI(identifiers=[0x1000])
             #pkt = DoIP(payload_type=0x8002, source_address=0xe80, target_address=0x1000) / Raw(load=b"Custom non-diagnostic message")
             # Send the crafted packet over the TLS connection
             ssock.send(bytes(pkt))
-            # Receive response (if needed)
-            response = ssock.recv(1024)
-            print("Received response:", response)
+            time.sleep(1)
 
 if __name__ == '__main__':
     connect_DoIP_TLS()
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/

@@ -14,15 +14,10 @@ unsigned char parseDiagnosticMessage(DiagnosticCallback callback, unsigned char 
     std::cout << "parse Diagnostic Message" << std::endl;
     if(diagMessageLength >= _DiagnosticMessageMinimumLength) {
         //Check if the received SA is registered on the socket
-        std::cout << "before" << std::endl;
-        std::cout << "here" << sourceAddress[0] << "here" << std::endl;
         if(data[0] != sourceAddress[0] || data[1] != sourceAddress[1]) {
             //SA of received message is not registered on this TCP_DATA socket
-            std::cout << "inside" << std::endl;
             return _InvalidSourceAddressCode;
         }
-        std::cout << "after" << std::endl;
-        std::cout << "source address valid" << std::endl;
         //Pass the diagnostic message to the target network/transport layer
         unsigned short target_address = 0;
         target_address |= ((unsigned short)data[2]) << 8U;

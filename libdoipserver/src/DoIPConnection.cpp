@@ -105,7 +105,6 @@ unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTLS(unsigned long pay
     unsigned long remainingPayload = payloadLength;
 
     while(remainingPayload > 0) { 
-        std::cout << "receivedData = " << receivedData << std::endl;
         int readBytes = SSL_read(ssl, &receivedData[payloadPos], remainingPayload);
         if(readBytes <= 0) {
             return payloadPos;
@@ -195,6 +194,7 @@ int DoIPConnection::reactOnReceivedTcpMessage(GenericHeaderAction action, unsign
     switch(action.type) {
         case PayloadType::NEGATIVEACK: {
             //send NACK
+            std::cout << "payloadtype NACK" << std::endl;
             sentBytes = sendNegativeAck(action.value);
 
             if(action.value == _IncorrectPatternFormatCode || 
@@ -207,6 +207,7 @@ int DoIPConnection::reactOnReceivedTcpMessage(GenericHeaderAction action, unsign
         }
 
         case PayloadType::ROUTINGACTIVATIONREQUEST: {
+            std::cout << "payloadtype routing activation request" << std::endl;
             //start routing activation handler with the received message
             unsigned char result = parseRoutingActivation(payload);
             unsigned char clientAddress [2] = {payload[0], payload[1]};
@@ -235,16 +236,18 @@ int DoIPConnection::reactOnReceivedTcpMessage(GenericHeaderAction action, unsign
         }
 
         case PayloadType::ALIVECHECKRESPONSE: {
+            std::cout << "payloadtype alivecheckresponse" << std::endl;
             return 0;
         }
 
         case PayloadType::DIAGNOSTICMESSAGE: {
-            std::cout << "payload = " << payload << std::endl;
+            std::cout << "payloadtype diagnosting message" << std::endl;
             unsigned short target_address = 0;
             target_address |= ((unsigned short)payload[2]) << 8U;
             target_address |= (unsigned short)payload[3];
             bool ack = notify_application(target_address);
-
+            std::cout << "target_address = " << target_address << std::endl;
+            std::cout << "routerdClientAddress = " << *routedClientAddress << std::endl;
             if(ack)
                 parseDiagnosticMessage(diag_callback, routedClientAddress, payload, payloadLength);
 
@@ -272,8 +275,11 @@ void DoIPConnection::triggerDisconnection() {
  *                          or -1 if error occurred
  */
 int DoIPConnection::sendMessage(unsigned char* message, int messageLength) {
-    int result = write(client_sock, message, messageLength); //K for tcp
-    return result;
+    if(ssl == nullptr)
+        return write(client_sock, message, messageLength); //K for tcp
+    else
+        return SSL_write(ssl, message, messageLength);
+    
 }
 
 /**
