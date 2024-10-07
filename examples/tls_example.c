@@ -94,12 +94,12 @@ static SSL_CTX* create_context(bool isServer)
 static void configure_server_context(SSL_CTX *ctx)
 {
     /* Set the key and cert */
-    if (SSL_CTX_use_certificate_chain_file(ctx, "/home/kirill/Desktop/work/bthesis/server-cert.pem") <= 0) {
+    if (SSL_CTX_use_certificate_chain_file(ctx, "/home/kirill/Desktop/work/bthesis/libdoip/ca_keys/server-cert.pem") <= 0) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
 
-    if (SSL_CTX_use_PrivateKey_file(ctx, "/home/kirill/Desktop/work/bthesis/server-key.pem", SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_PrivateKey_file(ctx, "/home/kirill/Desktop/work/bthesis/libdoip/ca_keys/server-key.pem", SSL_FILETYPE_PEM) <= 0) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
@@ -118,7 +118,7 @@ static void configure_client_context(SSL_CTX *ctx)
      *     SSL_CTX_set_default_verify_paths(ctx);
      * In this demo though we are using a self-signed certificate, so the client must trust it directly.
      */
-    if (!SSL_CTX_load_verify_locations(ctx, "/home/kirill/Desktop/work/bthesis/ca-cert.pem", NULL)) {
+    if (!SSL_CTX_load_verify_locations(ctx, "/home/kirill/Desktop/work/bthesis/libdoip/ca_keys/ca-cert.pem", NULL)) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
