@@ -82,11 +82,12 @@ void listenTls(){
 
     while(true) {
         std::cout << "Waiting for Tls Connection" << std::endl;
+        
         std::unique_ptr<DoIPConnection> uniConnection = server.waitForTlsConnection();
-        DoIPConnection *connection = uniConnection.get();
         connections.push_back(std::move(uniConnection));
+        
         std::cout << "A Tls Connection is found!" << std::endl;
-        //&last = connections.back()
+
         auto receive_lambda = [](unsigned short address, unsigned char* data, int length)
         {
             ReceiveFromLibrary(connections.back(), address, data, length);
@@ -95,12 +96,14 @@ void listenTls(){
         {
             return DiagnosticMessageReceived(connections.back(), targetAddress);
         };
+ 
         connections.back()->setCallback(receive_lambda, DMReceived_lambda, CloseConnection); 
         connections.back()->setGeneralInactivityTime(50000);
 
         while(connections.back()->isSocketActive()) {
             connections.back()->receiveTlsMessage();
         }
+        
     }
 }
 
@@ -113,10 +116,12 @@ void listenTcp() {
 
     while(true) {
         std::cout << "Waiting for Tcp Connection" << std::endl;
+        
         auto uniConnection = server.waitForTcpConnection();
-        DoIPConnection *connection = uniConnection.get();
         connections.push_back(std::move(uniConnection));
+        
         std::cout << "A Tcp Connection is found!" << std::endl;
+        
         auto receive_lambda = [](unsigned short address, unsigned char* data, int length)
         {
             ReceiveFromLibrary(connections.back(), address, data, length);
@@ -125,11 +130,11 @@ void listenTcp() {
         {
             return DiagnosticMessageReceived(connections.back(), targetAddress);
         };
-        connection->setCallback(receive_lambda, DMReceived_lambda, CloseConnection);
-        connection->setGeneralInactivityTime(50000);
+        connections.back()->setCallback(receive_lambda, DMReceived_lambda, CloseConnection);
+        connections.back()->setGeneralInactivityTime(50000);
 
-         while(connection->isSocketActive()) {
-             connection->receiveTcpMessage();
+         while(connections.back()->isSocketActive()) {
+             connections.back()->receiveTcpMessage();
          }
     }
 }

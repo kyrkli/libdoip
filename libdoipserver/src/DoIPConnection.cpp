@@ -47,6 +47,7 @@ void DoIPConnection::closeSocket(bool skip_shutdown /*=false*/) {
                 SSL_shutdown() should not be called if a previous fatal error has occurred 
                 on a connection; i.e., if SSL_get_error(3) has returned SSL_ERROR_SYSCALL 
                 or SSL_ERROR_SSL.
+                For that is the skip_shutdown responsible.
             */
             if(!skip_shutdown){
                 //read shutdown lifecycle, only shutdown if there isnt any error in the queue
@@ -129,8 +130,6 @@ unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTLS(unsigned long pay
                 // The peer shut down the connection properly at the TLS layer
                 break;
             case SSL_ERROR_SYSCALL:
-                closeSocket(true);
-                break;
             case SSL_ERROR_SSL:
                 closeSocket(true);
                 break;
