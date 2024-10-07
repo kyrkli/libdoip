@@ -81,7 +81,7 @@ void listenUdp() {
 
 
 void listenTls(){
-    
+
     server.setupTlsSocket();
 
     while(true) {
@@ -138,7 +138,7 @@ int main() {
     doipReceiver.push_back(thread(&listenUdp));
     doipReceiver.push_back(thread(&listenTcp));
     doipReceiver.push_back(thread(&listenTls));
-    //server.sendVehicleAnnouncement();
+    server.sendVehicleAnnouncement();
 
     doipReceiver.at(0).join();
     doipReceiver.at(1).join();

@@ -17,7 +17,27 @@ void DoIPConnection::aliveCheckTimeout() {
  */
 void DoIPConnection::closeSocket() {
     if(ssl != nullptr){
-        SSL_shutdown(ssl);
+
+        int ret = SSL_shutdown(ssl);
+        if (ret == 0) {
+            // First shutdown step: client needs to acknowledge shutdown
+            std::cout << "Client hasn't acknowledged shutdown, retrying...\n";
+            ret = SSL_shutdown(ssl);
+        }
+
+        if (ret == 1) {
+            std::cout << "SSL connection closed cleanly\n";
+        } else {
+            int err = SSL_get_error(ssl, ret);
+            if (err == SSL_ERROR_SYSCALL) {
+                std::cerr << "SSL_shutdown error: I/O error\n";
+            } else if (err == SSL_ERROR_SSL) {
+                std::cerr << "SSL_shutdown error: SSL protocol error\n";
+            } else {
+                std::cerr << "SSL_shutdown error: " << err << "\n";
+            }
+        }
+
         SSL_free(ssl);
         ssl = nullptr;
     }
@@ -39,6 +59,7 @@ int DoIPConnection::receiveTlsMessage() {
             payload = new unsigned char[doipHeaderAction.payloadLength];
             unsigned int receivedPayloadBytes = receiveFixedNumberOfBytesFromTLS(doipHeaderAction.payloadLength, payload);
             if(receivedPayloadBytes != doipHeaderAction.payloadLength) {
+                std::cout << "Close tls socket 1" << std::endl;
                 closeSocket();
                 return 0;
             }
@@ -54,6 +75,7 @@ int DoIPConnection::receiveTlsMessage() {
         
         return sentBytes;
     } else {
+        std::cout << "Close tls socket 2" << std::endl;
         closeSocket();
         return 0;
     }
@@ -95,6 +117,7 @@ int DoIPConnection::receiveTcpMessage() {
             payload = new unsigned char[doipHeaderAction.payloadLength];
             unsigned int receivedPayloadBytes = receiveFixedNumberOfBytesFromTCP(doipHeaderAction.payloadLength, payload);
             if(receivedPayloadBytes != doipHeaderAction.payloadLength) {
+                std::cout << "Close tcp socket 1" << std::endl;
                 closeSocket();
                 return 0;
             }
@@ -110,6 +133,7 @@ int DoIPConnection::receiveTcpMessage() {
         
         return sentBytes;
     } else {
+        std::cout << "Close tcp socket 2" << std::endl;
         closeSocket();
         return 0;
     }
