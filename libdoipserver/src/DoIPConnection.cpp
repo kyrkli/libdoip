@@ -3,6 +3,29 @@
 #include <iostream>
 #include <iomanip>
 
+int parseSSLerror(const SSL *ssl, int ret){
+    /*  
+        The current thread's error queue must be empty before the TLS/SSL I/O 
+        operation is attempted, or SSL_get_error() will not work reliably   
+    */
+    ERR_print_errors_fp(stderr);
+    int err = SSL_get_error(ssl, ret);
+    switch(err){
+        case SSL_ERROR_ZERO_RETURN:
+            return SSL_ERROR_ZERO_RETURN;
+        case SSL_ERROR_SYSCALL:
+            std::cerr << "SSL Error: I/O error" << std::endl;
+            return SSL_ERROR_SYSCALL;
+        case SSL_ERROR_SSL:
+            std::cerr << "SSL Error: SSL protocol error" << std::endl;
+            return SSL_ERROR_SSL;
+        default:
+            std::cerr << "SSL Not considered error: " << err << std::endl;
+            return err;
+    }
+    
+}
+
 /**
  * Closes the connection by closing the sockets
  */
@@ -16,52 +39,43 @@ void DoIPConnection::aliveCheckTimeout() {
  * Closes the socket for this server
  */
 void DoIPConnection::closeSocket(bool skip_shutdown /*=false*/) {
-    //Closing TLS layer
-    if(ssl != nullptr){
-        int err;
-        while ((err = ERR_get_error())) {
-            std::cerr << ERR_error_string(err, nullptr) << std::endl;
-        }
-        if(!skip_shutdown){
-            //The current thread's error queue must be empty before the TLS/SSL I/O 
-            //operation is attempted, or SSL_get_error() will not work reliably
+    std::cout << "CLOSE SOCKET!!!!!!!!" << std::endl;
+    if(isSocketActive()){
+        //Closing TLS layer
+        if(ssl != nullptr){
+            /*  
+                SSL_shutdown() should not be called if a previous fatal error has occurred 
+                on a connection; i.e., if SSL_get_error(3) has returned SSL_ERROR_SYSCALL 
+                or SSL_ERROR_SSL.
+            */
+            if(!skip_shutdown){
+                //read shutdown lifecycle, only shutdown if there isnt any error in the queue
+                int ret = SSL_shutdown(ssl);
+                
+                if (ret == 0) {
+                    // First shutdown step: client needs to acknowledge shutdown
+                    std::cout << "Client hasn't acknowledged shutdown, retrying...\n";
+                    ret = SSL_shutdown(ssl);
+                }
 
-            //read shutdown lifecycle, only shutdown if there isnt any error in the queue
-            int ret = SSL_shutdown(ssl);
-            if (ret == 0) {
-                // First shutdown step: client needs to acknowledge shutdown
-                std::cout << "Client hasn't acknowledged shutdown, retrying...\n";
-                ret = SSL_shutdown(ssl);
-            }
+                if (ret == 1)
+                    std::cout << "SSL connection closed cleanly\n";
+                else {
+                    std::cerr << "SSL_shutdown returned " << ret << "\n";
+                    parseSSLerror(ssl, ret);
+                }
 
-            if (ret == 1) {
-                std::cout << "SSL connection closed cleanly\n";
             } else {
-
-                while ((err = ERR_get_error())) {
-                    std::cerr << ERR_error_string(err, nullptr) << std::endl;
-                }
-
-                std::cerr << "SSL_shutdown returned " << ret << "\n";
-                err = SSL_get_error(ssl, ret);
-                if (err == SSL_ERROR_SYSCALL) {
-                   std::cerr << "SSL_shutdown error: I/O error\n";
-                } else if (err == SSL_ERROR_SSL) {
-                    std::cerr << "SSL_shutdown error: SSL protocol error\n";
-                } else {
-                    std::cerr << "SSL_shutdown error: " << err << "\n";
-                }
+                std::cout << "Skip shutdown" << std::endl;
             }
-        } else {
-            std::cout << "Skip shutdown" << std::endl;
-        }
 
-        SSL_free(ssl);
-        ssl = nullptr;
+            SSL_free(ssl);
+            ssl = nullptr;
+        }
+        //Closing TCP layer
+        close(client_sock);
+        client_sock = 0;
     }
-    //Closing TCP layer
-    close(client_sock);
-    client_sock = 0;
 }
 
 int DoIPConnection::receiveTlsMessage() {
@@ -108,27 +122,22 @@ unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTLS(unsigned long pay
     while(remainingPayload > 0) { 
         int readBytes = SSL_read(ssl, &receivedData[payloadPos], remainingPayload);
         if(readBytes <= 0) {
-            int err = SSL_get_error(ssl, readBytes);
-            if (err == SSL_ERROR_ZERO_RETURN) {
+            int err = parseSSLerror(ssl, readBytes);
+            switch (err)
+            {
+            case SSL_ERROR_ZERO_RETURN:
                 // The peer shut down the connection properly at the TLS layer
-                return payloadPos;
-            }
-
-            if (err == SSL_ERROR_SYSCALL) {
-                std::cerr << "SSL_shutdown error: I/O error\n";
+                break;
+            case SSL_ERROR_SYSCALL:
                 closeSocket(true);
-            } else if (err == SSL_ERROR_SSL) {
-                std::cerr << "SSL_shutdown error: SSL protocol error\n";
+                break;
+            case SSL_ERROR_SSL:
                 closeSocket(true);
-            } else {
-                std::cerr << "SSL_shutdown error: " << err << "\n";
+                break;
+            default:
+                std::cout << "Unexpected failure after SSL_read" << std::endl;
+                break;
             }
-
-            while ((err = ERR_get_error())) {
-                std::cerr << ERR_error_string(err, nullptr) << std::endl;
-            }
-            //TODO what is the correct return value in that case?
-            std::cout << "Unexpected failure after SSL_read" << std::endl;
             return payloadPos;
         }
         payloadPos += readBytes;
@@ -299,8 +308,15 @@ void DoIPConnection::triggerDisconnection() {
 int DoIPConnection::sendMessage(unsigned char* message, int messageLength) {
     if(ssl == nullptr)
         return write(client_sock, message, messageLength);
-    else
-        return SSL_write(ssl, message, messageLength);
+    else {
+        int sentBytes = SSL_write(ssl, message, messageLength);
+        if (sentBytes <= 0) {
+                printf("Server closed connection\n");
+                parseSSLerror(ssl, sentBytes);
+                return -1;
+            }
+            return sentBytes;
+        }
     
 }
 
