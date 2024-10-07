@@ -5,34 +5,6 @@
 #include <openssl/err.h>
 #include <openssl/tls1.h>
 
-int create_socket(int port)
-{
-    int s;
-    struct sockaddr_in addr;
-
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
-
-    s = socket(AF_INET, SOCK_STREAM, 0);
-    if (s < 0) {
-        perror("Unable to create socket");
-        exit(EXIT_FAILURE);
-    }
-
-    if (bind(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        perror("Unable to bind");
-        exit(EXIT_FAILURE);
-    }
-
-    if (listen(s, 1) < 0) {
-        perror("Unable to listen");
-        exit(EXIT_FAILURE);
-    }
-
-    return s;
-}
-
 SSL_CTX *create_context()
 {
     const SSL_METHOD *method;
@@ -79,68 +51,14 @@ void configure_context_client_auth(SSL_CTX *ctx)
     SSL_CTX_set_verify_depth(ctx, 1);
 }
 
-int tls_driver()
-{
-    int sock;
-    SSL_CTX *ctx;
-
-    /* Ignore broken pipe signals */
-    signal(SIGPIPE, SIG_IGN);
-
-
-    ctx = create_context();
-
-    //server-cert.pem and server-key.pem
-    //configure_context(ctx);
-    
-    //socket bind listen
-    sock = create_socket(4433);
-
-    /* Handle connections */
-    while(1) {
-        struct sockaddr_in addr;
-        unsigned int len = sizeof(addr);
-        SSL *ssl;
-        const char reply[] = "test\n";
-
-        int client = accept(sock, (struct sockaddr*)&addr, &len);
-        if (client < 0) {
-            perror("Unable to accept");
-            exit(EXIT_FAILURE);
-        }
-        
-        //SSL_new() creates a new SSL structure which is needed to hold the data for a TLS/SSL connection. 
-        //The new structure inherits the settings of the underlying context ctx: connection method, options, verification settings, timeout settings.
-        ssl = SSL_new(ctx);
-        
-        //SSL_set_fd() sets the file descriptor fd as the input/output facility for the TLS/SSL (encrypted) side of ssl. 
-        //fd will typically be the socket file descriptor of a network connection.
-        SSL_set_fd(ssl, client);
-
-        //SSL_accept() waits for a TLS/SSL client to initiate the TLS/SSL handshake. 
-        //The communication channel must already have been set and assigned to the ssl by setting an underlying BIO.
-        if (SSL_accept(ssl) <= 0) {
-            ERR_print_errors_fp(stderr);
-        } else {
-            SSL_write(ssl, reply, strlen(reply));
-        }
-
-        SSL_shutdown(ssl);
-        SSL_free(ssl);
-        close(client);
-    }
-
-    close(sock);
-    SSL_CTX_free(ctx);
-}
 
 void DoIPServer::setupTlsSocket() {
 
     ctx = create_context();
     //server-cert.pem and server-key.pem
     configure_context_client_auth(ctx);
-    server_socket_tls_tcp_data = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_socket_tls_tcp_data < 0) {
+    server_socket_tls = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_socket_tls < 0) {
         perror("Unable to create socket");
         exit(EXIT_FAILURE);
     }
@@ -150,7 +68,7 @@ void DoIPServer::setupTlsSocket() {
     serverAddress.sin_port = htons(_ServerPortTLS); // 4433?
     
     //binds the socket to the address and port number
-    if (bind(server_socket_tls_tcp_data, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0) {
+    if (bind(server_socket_tls, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0) {
         perror("Unable to bind");
         exit(EXIT_FAILURE);
     }; 
@@ -158,12 +76,12 @@ void DoIPServer::setupTlsSocket() {
 
 std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
     //waits till client approach to make connection
-    if (listen(server_socket_tls_tcp_data, 5) < 0){
+    if (listen(server_socket_tls, 5) < 0){
         perror("Unable to listen");
         exit(EXIT_FAILURE);
     }
-    int tcpSocket = accept(server_socket_tls_tcp_data, (struct sockaddr*) NULL, NULL);
-    if (tcpSocket < 0) {
+    int tlsSocket = accept(server_socket_tls, (struct sockaddr*) NULL, NULL);
+    if (tlsSocket < 0) {
             perror("Unable to accept");
             exit(EXIT_FAILURE);
     }
@@ -173,7 +91,7 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
     SSL *ssl = SSL_new(ctx);
     //SSL_set_fd() sets the file descriptor fd as the input/output facility for the TLS/SSL (encrypted) side of ssl. 
     //fd will typically be the socket file descriptor of a network connection.
-    SSL_set_fd(ssl, tcpSocket);
+    SSL_set_fd(ssl, tlsSocket);
 
     //SSL_accept() waits for a TLS/SSL client to initiate the TLS/SSL handshake. 
     //The communication channel must already have been set and assigned to the ssl by setting an underlying BIO.
@@ -184,7 +102,7 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
         exit(EXIT_FAILURE);
     }
 
-    return std::unique_ptr<DoIPConnection>(new DoIPConnection(ssl, LogicalGatewayAddress));
+    return std::unique_ptr<DoIPConnection>(new DoIPConnection(tlsSocket, LogicalGatewayAddress, ssl));
 }
 
 /*
@@ -233,6 +151,12 @@ void DoIPServer::setupUdpSocket() {
 /*
  * Closes the socket for this server
  */
+void DoIPServer::closeTlsSocket() {
+    close(server_socket_tls);
+    SSL_CTX_free(ctx);
+    ctx = nullptr;
+}
+
 void DoIPServer::closeTcpSocket() {
     close(server_socket_tcp);
 }

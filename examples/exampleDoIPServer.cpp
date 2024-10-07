@@ -3,13 +3,14 @@
 #include<iostream>
 #include<iomanip>
 #include<thread>
+//#include<vector>
 
 using namespace std;
 
 static const unsigned short LOGICAL_ADDRESS = 0x28;
 
 DoIPServer server;
-unique_ptr<DoIPConnection> connection(nullptr);
+std::vector<unique_ptr<DoIPConnection>> connections;
 std::vector<std::thread> doipReceiver;
 bool serverActive = false;
 
@@ -29,11 +30,11 @@ void ReceiveFromLibrary(unsigned short address, unsigned char* data, int length)
     if(length > 2 && data[0] == 0x22)  {
         cout << "-> Send diagnostic message positive response" << endl;
         unsigned char responseData[] = { 0x62, data[1], data[2], 0x01, 0x02, 0x03, 0x04};
-        connection->sendDiagnosticPayload(LOGICAL_ADDRESS, responseData, sizeof(responseData));
+        //connection->sendDiagnosticPayload(LOGICAL_ADDRESS, responseData, sizeof(responseData));
     } else {
         cout << "-> Send diagnostic message negative response" << endl;
         unsigned char responseData[] = { 0x7F, data[0], 0x11};
-        connection->sendDiagnosticPayload(LOGICAL_ADDRESS, responseData, sizeof(responseData));
+        //connection->sendDiagnosticPayload(LOGICAL_ADDRESS, responseData, sizeof(responseData));
     }
 
 
@@ -55,7 +56,7 @@ bool DiagnosticMessageReceived(unsigned short targetAddress) {
     //send positiv ack
     ackCode = 0x00;
     cout << "-> Send positive diagnostic message ack" << endl;
-    connection->sendDiagnosticAck(LOGICAL_ADDRESS, true, ackCode);
+    //connection->sendDiagnosticAck(LOGICAL_ADDRESS, true, ackCode);
 
     return true;
 }
@@ -84,24 +85,18 @@ void listenTls(){
 
     //while(true) {
         std::cout << "Waiting for Tls Connection" << std::endl;
-        connection = server.waitForTlsConnection();
+        connections.push_back(server.waitForTlsConnection());
         std::cout << "A Tls Connection is found!" << std::endl;
         //connection->setCallback(ReceiveFromLibrary, DiagnosticMessageReceived, CloseConnection);
         //connection->setGeneralInactivityTime(50000);
 
         //echo loop
-        connection->receiveTlsMessage();
+        connections.back()->receiveTlsMessage();
+
+        
     //}
 }
-/*
-void listenTlsTcp() {
-    server.setupTlsTcpSocket();
 
-    while(true) {
-        connection = server.waitForTlsTcpConnection();
-    }
-}
-*/
 /*
  * Check permantly if tcp message was received
  */
@@ -111,13 +106,13 @@ void listenTcp() {
 
     while(true) {
         std::cout << "Waiting for Tcp Connection" << std::endl;
-        connection = server.waitForTcpConnection();
+        connections.push_back(server.waitForTcpConnection());
         std::cout << "A Tcp Connection is found!" << std::endl;
-        connection->setCallback(ReceiveFromLibrary, DiagnosticMessageReceived, CloseConnection);
-        connection->setGeneralInactivityTime(50000);
+        connections.back()->setCallback(ReceiveFromLibrary, DiagnosticMessageReceived, CloseConnection);
+        connections.back()->setGeneralInactivityTime(50000);
 
-         while(connection->isSocketActive()) {
-             connection->receiveTcpMessage();
+         while(connections.back()->isSocketActive()) {
+             connections.back()->receiveTcpMessage();
          }
     }
 }

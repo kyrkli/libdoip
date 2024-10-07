@@ -16,8 +16,13 @@ void DoIPConnection::aliveCheckTimeout() {
  * Closes the socket for this server
  */
 void DoIPConnection::closeSocket() {
-    close(tcpSocket);
-    tcpSocket = 0;
+    if(ssl != nullptr){
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
+        ssl = nullptr;
+    }
+    close(client_sock);
+    client_sock = 0;
 }
 
 int DoIPConnection::receiveTlsMessage() {
@@ -65,7 +70,7 @@ unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTLS(unsigned long pay
     unsigned long remainingPayload = payloadLength;
 
     while(remainingPayload > 0) {
-        int readBytes = recv(tcpSocket, &receivedData[payloadPos], remainingPayload, 0);
+        int readBytes = recv(client_sock, &receivedData[payloadPos], remainingPayload, 0);
         if(readBytes <= 0) {
             return payloadPos;
         }
@@ -131,7 +136,7 @@ unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTCP(unsigned long pay
     unsigned long remainingPayload = payloadLength;
 
     while(remainingPayload > 0) {
-        int readBytes = recv(tcpSocket, &receivedData[payloadPos], remainingPayload, 0);
+        int readBytes = recv(client_sock, &receivedData[payloadPos], remainingPayload, 0);
         if(readBytes <= 0) {
             return payloadPos;
         }
@@ -230,7 +235,7 @@ void DoIPConnection::triggerDisconnection() {
  *                          or -1 if error occurred
  */
 int DoIPConnection::sendMessage(unsigned char* message, int messageLength) {
-    int result = write(tcpSocket, message, messageLength);
+    int result = write(client_sock, message, messageLength); //K for tcp
     return result;
 }
 

@@ -26,12 +26,15 @@ const unsigned long _MaxDataSize = 0xFFFFFF;
 class DoIPConnection {
 
 public:
-    DoIPConnection(int tcpSocket, unsigned short logicalGatewayAddress): 
+    /*DoIPConnection(int tcpSocket, unsigned short logicalGatewayAddress): 
         tcpSocket(tcpSocket), logicalGatewayAddress(logicalGatewayAddress) { };
 
     DoIPConnection(SSL* ssl, unsigned short logicalGatewayAddress): 
-        ssl(ssl), logicalGatewayAddress(logicalGatewayAddress) { };
+        ssl(ssl), logicalGatewayAddress(logicalGatewayAddress) { };*/
     
+    DoIPConnection(int client_sock, unsigned short logicalGatewayAddress, SSL* ssl = nullptr): 
+        client_sock(client_sock), logicalGatewayAddress(logicalGatewayAddress), ssl(ssl){ };
+
     int receiveTlsMessage();
     unsigned long receiveFixedNumberOfBytesFromTLS(unsigned long payloadLength, unsigned char *receivedData);
     
@@ -39,7 +42,7 @@ public:
     unsigned long receiveFixedNumberOfBytesFromTCP(unsigned long payloadLength, unsigned char *receivedData);
 
     void sendDiagnosticPayload(unsigned short sourceAddress, unsigned char* data, int length);
-    bool isSocketActive() { return tcpSocket != 0; };
+    bool isSocketActive() { return client_sock != 0; };
 
     void triggerDisconnection();
     
@@ -51,8 +54,8 @@ public:
 
 private:
     
-    SSL *ssl;
-    int tcpSocket;
+    SSL *ssl = nullptr;
+    int client_sock = 0;
 
     AliveCheckTimer aliveCheckTimer;
     DiagnosticCallback diag_callback;

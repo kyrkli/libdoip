@@ -34,14 +34,12 @@ public:
     void setupTlsSocket();
     std::unique_ptr<DoIPConnection> waitForTlsConnection();
 
-    void setupTlsTcpSocket();
-    std::unique_ptr<DoIPConnection> waitForTlsTcpConnection();
-
     void setupTcpSocket();
     std::unique_ptr<DoIPConnection> waitForTcpConnection();
     void setupUdpSocket();
     int receiveUdpMessage();
 
+    void closeTlsSocket();
     void closeTcpSocket();
     void closeUdpSocket();
     
@@ -57,9 +55,7 @@ public:
     void setA_DoIP_Announce_Interval(int Interval); 
 
 private:
-
-    int server_socket_tls_tcp_data;
-    SSL_CTX *ctx = NULL;
+    SSL_CTX *ctx = nullptr;
 
     int server_socket_tls;
     int server_socket_tcp;
