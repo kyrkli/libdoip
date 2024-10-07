@@ -16,6 +16,8 @@
 #include "RoutingActivationHandler.h"
 #include "DiagnosticMessageHandler.h"
 #include "AliveCheckTimer.h"
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 using CloseConnectionCallback = std::function<void()>;
 
@@ -26,6 +28,12 @@ class DoIPConnection {
 public:
     DoIPConnection(int tcpSocket, unsigned short logicalGatewayAddress): 
         tcpSocket(tcpSocket), logicalGatewayAddress(logicalGatewayAddress) { };
+
+    DoIPConnection(SSL* ssl, unsigned short logicalGatewayAddress): 
+        ssl(ssl), logicalGatewayAddress(logicalGatewayAddress) { };
+    
+    int receiveTlsMessage();
+    unsigned long receiveFixedNumberOfBytesFromTLS(unsigned long payloadLength, unsigned char *receivedData);
     
     int receiveTcpMessage();
     unsigned long receiveFixedNumberOfBytesFromTCP(unsigned long payloadLength, unsigned char *receivedData);
@@ -42,6 +50,8 @@ public:
     void setGeneralInactivityTime(const uint16_t seconds);   
 
 private:
+    
+    SSL *ssl;
 
     int tcpSocket;
 

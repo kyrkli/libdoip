@@ -34,3 +34,9 @@ runTest
 
 # Folder
 build/
+
+# Test output files
+*.xml
+
+# vscode
+.vscode

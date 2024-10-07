@@ -1,7 +1,8 @@
 CXX = g++
 
-CPPFLAGS = -g -Wall -Wextra -std=c++11 -fsanitize=address
-LDFLAGS = -shared
+CPPFLAGS = -g -Wall -Wextra -std=c++14 -fsanitize=address
+LDFLAGS = -shared -L/usr/local/ssl/lib
+LDLIBS = -lssl -lcrypto
 TESTFLAGS = -g -L/usr/lib -lgtest -lgtest_main -lpthread
 
 SRCPATH = src
@@ -41,25 +42,25 @@ clean:
 	rm -rf $(BUILDPATH)/* 
 
 $(BUILDPATH)/%.o: $(COMMONTARGET)/$(SRCPATH)/%.cpp
-	$(CXX) $(CPPFLAGS) -I $(COMMONTARGET)/$(INCPATH) -fPIC -c $< -o $@
+	$(CXX) $(CPPFLAGS) -I $(COMMONTARGET)/$(INCPATH) -fPIC -c $< -o $@ $(LDLIBS)
 	
 $(BUILDPATH)/%.o: $(SERVERTARGET)/$(SRCPATH)/%.cpp
-	$(CXX) $(CPPFLAGS) -I $(SERVERTARGET)/$(INCPATH) -I $(COMMONTARGET)/$(INCPATH) -fPIC -c $< -o $@
+	$(CXX) $(CPPFLAGS) -I $(SERVERTARGET)/$(INCPATH) -I $(COMMONTARGET)/$(INCPATH) -fPIC -c $< -o $@ $(LDLIBS)
 	
 $(BUILDPATH)/%.o: $(CLIENTTARGET)/$(SRCPATH)/%.cpp
-	$(CXX) $(CPPFLAGS) -I $(CLIENTTARGET)/$(INCPATH) -I $(COMMONTARGET)/$(INCPATH) -fPIC -c $< -o $@
+	$(CXX) $(CPPFLAGS) -I $(CLIENTTARGET)/$(INCPATH) -I $(COMMONTARGET)/$(INCPATH) -fPIC -c $< -o $@ $(LDLIBS)
     
 $(BUILDPATH)/$(COMMONTARGET).so: $(COMMONOBJS)
-	$(CXX) $(CPPFLAGS) $^ $(LDFLAGS) -o $@
+	$(CXX) $(CPPFLAGS) $^ $(LDFLAGS) -o $@ $(LDLIBS)
 	
 $(BUILDPATH)/$(SERVERTARGET).so: $(SERVEROBJS)
-	$(CXX) $(CPPFLAGS) $^ $(LDFLAGS) -o $@
+	$(CXX) $(CPPFLAGS) $^ $(LDFLAGS) -o $@ $(LDLIBS)
 	
 $(BUILDPATH)/$(CLIENTTARGET).so: $(CLIENTOBJS)
-	$(CXX) $(CPPFLAGS) $^ $(LDFLAGS) -o $@
+	$(CXX) $(CPPFLAGS) $^ $(LDFLAGS) -o $@ $(LDLIBS)
 	
 test:
-	$(CXX) $(CPPFLAGS) -I $(COMMONTARGET)/$(INCPATH) -I $(SERVERTARGET)/$(INCPATH) -I $(CLIENTTARGET)/$(INCPATH) $(COMMONSOURCE) $(SERVERSOURCE) $(CLIENTSOURCE) -o runTest $(TESTSOURCE) $(TESTFLAGS) 
+	$(CXX) $(CPPFLAGS) -I $(COMMONTARGET)/$(INCPATH) -I $(SERVERTARGET)/$(INCPATH) -I $(CLIENTTARGET)/$(INCPATH) $(COMMONSOURCE) $(SERVERSOURCE) $(CLIENTSOURCE) -o runTest $(TESTSOURCE) $(TESTFLAGS) $(LDLIBS)
 	
 examples: $(BUILDPATH)/exampleDoIPServer
 

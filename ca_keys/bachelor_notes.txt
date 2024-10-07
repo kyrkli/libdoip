@@ -1,0 +1,7 @@
+#compiling a test cpp file (added include folders for library dependencies, all src/ files for implementations of functions and -lssl -lcrypto at the end)
+
+g++ -I/home/kirill/Desktop/work/bthesis/libdoip/libdoipclient/include/ -I/home/kirill/Desktop/work/bthesis/libdoip/libdoipcommon/include/ -I/home/kirill/Desktop/work/bthesis/libdoip/libdoipserver/include/ -o testRun RoutingActivationHandler_Test.cpp ../../libdoipclient/src/* ../../libdoipcommon/src/* ../../libdoipserver/src/* -g -L/usr/lib/ -lgtest -lgtest_main -lpthread -lssl -lcrypto
+
+#compiling exampleDoIPServer.cpp
+
+g++ -I/home/kirill/Desktop/work/bthesis/libdoip/libdoipclient/include/ -I/home/kirill/Desktop/work/bthesis/libdoip/libdoipcommon/include/ -I/home/kirill/Desktop/work/bthesis/libdoip/libdoipserver/include/ -o testExample exampleDoIPServer.cpp ../libdoipclient/src/* ../libdoipcommon/src/* ../libdoipserver/src/* -lpthread -lssl -lcrypto

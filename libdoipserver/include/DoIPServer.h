@@ -21,7 +21,7 @@
 
 using CloseConnectionCallback = std::function<void()>;
 
-const int _ServerPort = 13400;
+const int _ServerPort = 4433; //13400
 //const unsigned long _MaxDataSize = 4294967294;
 //const unsigned long _MaxDataSize = 0xFFFFFF;
 
@@ -30,6 +30,9 @@ class DoIPServer {
 public:
     DoIPServer() = default;
     
+    void setupTlsSocket();
+    std::unique_ptr<DoIPConnection> waitForTlsConnection();
+
     void setupTcpSocket();
     std::unique_ptr<DoIPConnection> waitForTcpConnection();
     void setupUdpSocket();
@@ -51,7 +54,11 @@ public:
 
 private:
 
-    int server_socket_tcp, server_socket_udp;
+    int server_socket_tls_tcp_data;
+    SSL_CTX *ctx = NULL;
+
+    int server_socket_tcp;
+    int server_socket_udp;
     struct sockaddr_in serverAddress, clientAddress;
     unsigned char data[_MaxDataSize];
 
