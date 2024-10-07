@@ -9,3 +9,8 @@ g++ -I/home/kirill/Desktop/work/bthesis/libdoip/libdoipclient/include/ -I/home/k
 #compiling tls client from openssl example
 
 gcc -o sslecho tls_example.c -lssl -lcrypto
+
+#for testing client authentication
+openssl s_client -connect localhost:4433 -cert client-cert.pem -key client-key.pem -CAfile ca-cert.pem
+
+
