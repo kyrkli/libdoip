@@ -20,8 +20,8 @@ bool serverActive = false;
  * @param data      message which was received
  * @param length    length of the message
  */
-void ReceiveFromLibrary(unsigned short address, unsigned char* data, int length) {
-    cout << "DoIP Message received from 0x" << hex << address << ": ";
+void ReceiveFromLibrary(DoIPConnection* connection, unsigned short target_address, unsigned char* data, int length) {
+    cout << "DoIP Message received with target address 0x" << hex << target_address << ": ";
     for(int i = 0; i < length; i++) {
         cout << hex << setw(2) << (int)data[i] << " ";
     }
@@ -30,14 +30,12 @@ void ReceiveFromLibrary(unsigned short address, unsigned char* data, int length)
     if(length > 2 && data[0] == 0x22)  {
         cout << "-> Send diagnostic message positive response" << endl;
         unsigned char responseData[] = { 0x62, data[1], data[2], 0x01, 0x02, 0x03, 0x04};
-        //connection->sendDiagnosticPayload(LOGICAL_ADDRESS, responseData, sizeof(responseData));
+        connection->sendDiagnosticPayload(target_address, responseData, sizeof(responseData));
     } else {
         cout << "-> Send diagnostic message negative response" << endl;
         unsigned char responseData[] = { 0x7F, data[0], 0x11};
-        //connection->sendDiagnosticPayload(LOGICAL_ADDRESS, responseData, sizeof(responseData));
+        connection->sendDiagnosticPayload(target_address, responseData, sizeof(responseData));
     }
-
-
 }
 
 /**
@@ -65,6 +63,7 @@ bool DiagnosticMessageReceived(unsigned short targetAddress) {
  * Closes the connection of the server by ending the listener threads
  */
 void CloseConnection() {
+    // Make sure this is called as a callback, and clean the connections vector
     cout << "Connection closed" << endl;
     //serverActive = false;
 }
@@ -86,13 +85,19 @@ void listenTls(){
 
     while(true) {
         std::cout << "Waiting for Tls Connection" << std::endl;
-        connections.push_back(server.waitForTlsConnection());
+        unique_ptr<DoIPConnection> uniConnection = server.waitForTlsConnection();
+        DoIPConnection *connection = uniConnection.get();
+        connections.push_back(std::move(uniConnection));
         std::cout << "A Tls Connection is found!" << std::endl;
-        connections.back()->setCallback(ReceiveFromLibrary, DiagnosticMessageReceived, CloseConnection);
-        connections.back()->setGeneralInactivityTime(50000);
+        auto vglambda = [connection](unsigned short address, unsigned char* data, int length)
+        {
+            ReceiveFromLibrary(connection, address, data, length);
+        };
+        connection->setCallback(vglambda, DiagnosticMessageReceived, CloseConnection);
+        connection->setGeneralInactivityTime(50000);
 
-        while(connections.back()->isSocketActive()) {
-            connections.back()->receiveTlsMessage();
+        while(connection->isSocketActive()) {
+            connection->receiveTlsMessage();
         }
         
     }
@@ -107,13 +112,19 @@ void listenTcp() {
 
     while(true) {
         std::cout << "Waiting for Tcp Connection" << std::endl;
-        connections.push_back(server.waitForTcpConnection());
+        auto uniConnection = server.waitForTcpConnection();
+        DoIPConnection *connection = uniConnection.get();
+        connections.push_back(std::move(uniConnection));
         std::cout << "A Tcp Connection is found!" << std::endl;
-        connections.back()->setCallback(ReceiveFromLibrary, DiagnosticMessageReceived, CloseConnection);
-        connections.back()->setGeneralInactivityTime(50000);
+        auto vglambda = [=](unsigned short address, unsigned char* data, int length)
+        {
+            ReceiveFromLibrary(connection, address, data, length);
+        };
+        connection->setCallback(vglambda, DiagnosticMessageReceived, CloseConnection);
+        connection->setGeneralInactivityTime(50000);
 
-         while(connections.back()->isSocketActive()) {
-             connections.back()->receiveTcpMessage();
+         while(connection->isSocketActive()) {
+             connection->receiveTcpMessage();
          }
     }
 }

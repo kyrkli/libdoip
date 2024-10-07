@@ -17,7 +17,11 @@ void DoIPConnection::aliveCheckTimeout() {
  */
 void DoIPConnection::closeSocket() {
     if(ssl != nullptr){
-
+        int err;
+        while ((err = ERR_get_error()) != 0) {
+            std::cerr << ERR_error_string(err, nullptr) << std::endl;
+        }
+        //read shutdown lifecycle, only shutdown if there isnt any error in the queue
         int ret = SSL_shutdown(ssl);
         if (ret == 0) {
             // First shutdown step: client needs to acknowledge shutdown
@@ -28,13 +32,17 @@ void DoIPConnection::closeSocket() {
         if (ret == 1) {
             std::cout << "SSL connection closed cleanly\n";
         } else {
-            int err = SSL_get_error(ssl, ret);
+            std::cerr << "SSL_shutdown returned " << ret << "\n";
+            err = SSL_get_error(ssl, ret);
             if (err == SSL_ERROR_SYSCALL) {
                 std::cerr << "SSL_shutdown error: I/O error\n";
             } else if (err == SSL_ERROR_SSL) {
                 std::cerr << "SSL_shutdown error: SSL protocol error\n";
             } else {
                 std::cerr << "SSL_shutdown error: " << err << "\n";
+            }
+            while ((err = ERR_get_error()) != 0) {
+                std::cerr << ERR_error_string(err, nullptr) << std::endl;
             }
         }
 
@@ -75,7 +83,7 @@ int DoIPConnection::receiveTlsMessage() {
         
         return sentBytes;
     } else {
-        std::cout << "Close tls socket 2" << std::endl;
+        std::cout << "Close tls socket 2 (received only " << readBytes << " bytes )" << std::endl;
         closeSocket();
         return 0;
     }
@@ -89,6 +97,11 @@ unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTLS(unsigned long pay
     while(remainingPayload > 0) { 
         int readBytes = SSL_read(ssl, &receivedData[payloadPos], remainingPayload);
         if(readBytes <= 0) {
+            int err = SSL_get_error(ssl, readBytes);
+            if (err == SSL_ERROR_ZERO_RETURN) {
+                // The peer shut down the connection properly at the TLS layer
+                closeSocket();
+            }
             return payloadPos;
         }
         payloadPos += readBytes;
@@ -133,7 +146,7 @@ int DoIPConnection::receiveTcpMessage() {
         
         return sentBytes;
     } else {
-        std::cout << "Close tcp socket 2" << std::endl;
+        std::cout << "Close tcp socket 2 (received only " << readBytes << " bytes )" << std::endl;
         closeSocket();
         return 0;
     }
