@@ -174,6 +174,60 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
     return std::unique_ptr<DoIPConnection>(new DoIPConnection(ssl, LogicalGatewayAddress));
 }
 
+void DoIPServer::setupTlsTcpSocket(){
+    server_socket_tls_tcp_data = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_socket_tls_tcp_data < 0) {
+        perror("Unable to create (tls) tcp socket");
+        exit(EXIT_FAILURE);
+    }
+
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
+    serverAddress.sin_port = htons(_ServerPort);
+
+    //binds the socket to the address and port number
+    if (bind(server_socket_tls_tcp_data, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0) {
+        perror("Unable to bind the (tls) tcp socket");
+        exit(EXIT_FAILURE);
+    }; 
+}
+
+std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsTcpConnection() {
+    //waits till client approach to make connection
+    if (listen(server_socket_tls_tcp_data, 5) < 0){
+        perror("Unable to listen");
+        exit(EXIT_FAILURE);
+    }
+    int tcpSocket = accept(server_socket_tls_tcp_data, (struct sockaddr*) NULL, NULL);
+    if (tcpSocket < 0) {
+        perror("Unable to accept tcp socket");
+        exit(EXIT_FAILURE);
+    }
+
+    //in case of secured communication
+    ctx = create_context();
+    //server-cert.pem and server-key.pem
+    configure_context(ctx);
+    //SSL_new() creates a new SSL structure which is needed to hold the data for a TLS/SSL connection. 
+    //The new structure inherits the settings of the underlying context ctx: connection method, options, verification settings, timeout settings.    
+    SSL *ssl = SSL_new(ctx);
+
+    //SSL_set_fd() sets the file descriptor fd as the input/output facility for the TLS/SSL (encrypted) side of ssl. 
+    //fd will typically be the socket file descriptor of a network connection.
+    SSL_set_fd(ssl, tcpSocket);
+
+    //SSL_accept() waits for a TLS/SSL client to initiate the TLS/SSL handshake. 
+    //The communication channel must already have been set and assigned to the ssl by setting an underlying BIO.
+    if (SSL_accept(ssl) <= 0) {
+        //ERR_print_errors_fp(stderr);
+        //in case of unsecured communication
+        //flag unsecured = True
+        return std::unique_ptr<DoIPConnection>(new DoIPConnection(tcpSocket, LogicalGatewayAddress));
+    }
+    
+    return std::unique_ptr<DoIPConnection>(new DoIPConnection(ssl, LogicalGatewayAddress));
+}
+
 /*
  * Set up a tcp socket, so the socket is ready to accept a connection 
  */
