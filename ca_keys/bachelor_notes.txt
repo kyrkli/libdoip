@@ -5,3 +5,8 @@ g++ -I/home/kirill/Desktop/work/bthesis/libdoip/libdoipclient/include/ -I/home/k
 #compiling exampleDoIPServer.cpp
 
 g++ -I/home/kirill/Desktop/work/bthesis/libdoip/libdoipclient/include/ -I/home/kirill/Desktop/work/bthesis/libdoip/libdoipcommon/include/ -I/home/kirill/Desktop/work/bthesis/libdoip/libdoipserver/include/ -o testExample exampleDoIPServer.cpp ../libdoipclient/src/* ../libdoipcommon/src/* ../libdoipserver/src/* -lpthread -lssl -lcrypto
+
+#compiling tls client from openssl example
+
+gcc -o sslecho tls_example.c -lssl -lcrypto
+
