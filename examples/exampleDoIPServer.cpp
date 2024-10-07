@@ -83,18 +83,18 @@ void listenUdp() {
 void listenTls(){
     server.setupTlsSocket();
 
-    //while(true) {
+    while(true) {
         std::cout << "Waiting for Tls Connection" << std::endl;
         connections.push_back(server.waitForTlsConnection());
         std::cout << "A Tls Connection is found!" << std::endl;
-        //connection->setCallback(ReceiveFromLibrary, DiagnosticMessageReceived, CloseConnection);
-        //connection->setGeneralInactivityTime(50000);
+        connections.back()->setCallback(ReceiveFromLibrary, DiagnosticMessageReceived, CloseConnection);
+        connections.back()->setGeneralInactivityTime(50000);
 
-        //echo loop
-        connections.back()->receiveTlsMessage();
-
+        while(connections.back()->isSocketActive()) {
+            connections.back()->receiveTlsMessage();
+        }
         
-    //}
+    }
 }
 
 /*

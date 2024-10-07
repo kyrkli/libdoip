@@ -24,15 +24,15 @@ void DoIPConnection::closeSocket() {
     close(client_sock);
     client_sock = 0;
 }
-
-int DoIPConnection::receiveTlsMessage() {
+/*
+void echo_loop() {
     char rxbuf[128];
     size_t rxcap = sizeof(rxbuf);
     int rxlen;
 
-    /* Echo loop */
+    // Echo loop
     while (true) {
-        /* Get message from client; will fail if client closes connection */
+        // Get message from client; will fail if client closes connection 
         if ((rxlen = SSL_read(ssl, rxbuf, rxcap)) <= 0) {
             if (rxlen == 0) {
                 printf("Client closed connection\n");
@@ -42,35 +42,70 @@ int DoIPConnection::receiveTlsMessage() {
             ERR_print_errors_fp(stderr);
             break;
         }
-        /* Insure null terminated input */
+        // Insure null terminated input
         rxbuf[rxlen] = 0;
-        /* Look for kill switch */
+        // Look for kill switch 
         if (strcmp(rxbuf, "kill\n") == 0) {
-            /* Terminate...with extreme prejudice */
+            // Terminate...with extreme prejudice 
             printf("Server received 'kill' command\n");
             //server_running = false;
-            /* Cleanup for next client */
+            // Cleanup for next client 
                 SSL_shutdown(ssl);
                 SSL_free(ssl);
                 //close(client_skt);
             printf("Server received 'kill' command\n");
             break;
         }
-        /* Show received message */
+        // Show received message 
         printf("Received: %s", rxbuf);
-        /* Echo it back */
+        // Echo it back 
         if (SSL_write(ssl, rxbuf, rxlen) <= 0) {
             ERR_print_errors_fp(stderr);
         }
     }
+}
+*/
+int DoIPConnection::receiveTlsMessage() {
+    std::cout << "Waiting for DoIP Header..." << std::endl;
+    unsigned char genericHeader[_GenericHeaderLength];
+    unsigned int readBytes = receiveFixedNumberOfBytesFromTLS(_GenericHeaderLength, genericHeader);
+    if(readBytes == _GenericHeaderLength && !aliveCheckTimer.timeout) {
+        std::cout << "Received DoIP Header." << std::endl;
+        GenericHeaderAction doipHeaderAction = parseGenericHeader(genericHeader, _GenericHeaderLength);
+
+        unsigned char *payload = nullptr;
+        if(doipHeaderAction.payloadLength > 0) {
+            std::cout << "Waiting for " << doipHeaderAction.payloadLength << " bytes of payload..." << std::endl;
+            payload = new unsigned char[doipHeaderAction.payloadLength];
+            unsigned int receivedPayloadBytes = receiveFixedNumberOfBytesFromTLS(doipHeaderAction.payloadLength, payload);
+            if(receivedPayloadBytes != doipHeaderAction.payloadLength) {
+                closeSocket();
+                return 0;
+            }
+            std::cout << "DoIP message completely received" << std::endl;
+        }
+
+        //if alive check timouts should be possible, reset timer when message received
+        if(aliveCheckTimer.active) {
+            aliveCheckTimer.resetTimer();
+        }
+
+        int sentBytes = reactOnReceivedTcpMessage(doipHeaderAction, doipHeaderAction.payloadLength, payload);
+        
+        return sentBytes;
+    } else {
+        closeSocket();
+        return 0;
+    }
+    return -1;
 }
 
 unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTLS(unsigned long payloadLength, unsigned char *receivedData) {
     unsigned long payloadPos = 0;
     unsigned long remainingPayload = payloadLength;
 
-    while(remainingPayload > 0) {
-        int readBytes = recv(client_sock, &receivedData[payloadPos], remainingPayload, 0);
+    while(remainingPayload > 0) { 
+        int readBytes = SSL_read(ssl, &receivedData[payloadPos], remainingPayload);
         if(readBytes <= 0) {
             return payloadPos;
         }
