@@ -33,6 +33,9 @@ public:
     void setupTlsSocket();
     std::unique_ptr<DoIPConnection> waitForTlsConnection();
 
+    void setupTlsTcpSocket();
+    std::unique_ptr<DoIPConnection> waitForTlsTcpConnection();
+
     void setupTcpSocket();
     std::unique_ptr<DoIPConnection> waitForTcpConnection();
     void setupUdpSocket();
