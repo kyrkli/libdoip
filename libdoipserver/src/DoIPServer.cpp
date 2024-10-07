@@ -98,8 +98,7 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
         std::cout << "error ssl_accept" << std::endl;
         exit(EXIT_FAILURE);
     }
-
-    return std::unique_ptr<DoIPConnection>(new DoIPConnection(tlsSocket, LogicalGatewayAddress, ssl));
+    return std::make_unique<DoIPConnection>(tlsSocket, LogicalGatewayAddress, ssl);
 }
 
 /*
@@ -124,7 +123,7 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTcpConnection() {
     //waits till client approach to make connection
     listen(server_socket_tcp, 5);                                                          
     int tcpSocket = accept(server_socket_tcp, (struct sockaddr*) nullptr, nullptr);
-    return std::unique_ptr<DoIPConnection>(new DoIPConnection(tcpSocket, LogicalGatewayAddress));
+    return std::make_unique<DoIPConnection>(tcpSocket, LogicalGatewayAddress);
 }
 
 void DoIPServer::setupUdpSocket() {

@@ -26,12 +26,6 @@ const unsigned long _MaxDataSize = 0xFFFFFF;
 class DoIPConnection {
 
 public:
-    /*DoIPConnection(int tcpSocket, unsigned short logicalGatewayAddress): 
-        tcpSocket(tcpSocket), logicalGatewayAddress(logicalGatewayAddress) { };
-
-    DoIPConnection(SSL* ssl, unsigned short logicalGatewayAddress): 
-        ssl(ssl), logicalGatewayAddress(logicalGatewayAddress) { };*/
-    
     DoIPConnection(int client_sock, unsigned short logicalGatewayAddress, SSL* ssl = nullptr): 
         client_sock(client_sock), logicalGatewayAddress(logicalGatewayAddress), ssl(ssl){ };
 

@@ -3,14 +3,11 @@
 #include<iostream>
 #include<iomanip>
 #include<thread>
-//#include<vector>
-
-using namespace std;
 
 static const unsigned short LOGICAL_ADDRESS = 0x28;
 
 DoIPServer server;
-std::vector<unique_ptr<DoIPConnection>> connections;
+std::vector<std::unique_ptr<DoIPConnection>> connections;
 std::vector<std::thread> doipReceiver;
 bool serverActive = false;
 
@@ -20,19 +17,19 @@ bool serverActive = false;
  * @param data      message which was received
  * @param length    length of the message
  */
-void ReceiveFromLibrary(DoIPConnection* connection, unsigned short target_address, unsigned char* data, int length) {
-    cout << "DoIP Message received with target address 0x" << hex << target_address << ": ";
+void ReceiveFromLibrary(std::unique_ptr<DoIPConnection> &connection, unsigned short target_address, unsigned char* data, int length) {
+    std::cout << "DoIP Message received with target address 0x" << std::hex << target_address << ": ";
     for(int i = 0; i < length; i++) {
-        cout << hex << setw(2) << (int)data[i] << " ";
+        std::cout << std::hex << std::setw(2) << (int)data[i] << " ";
     }
-    cout << endl;
+    std::cout << std::endl;
 
     if(length > 2 && data[0] == 0x22)  {
-        cout << "-> Send diagnostic message positive response" << endl;
+        std::cout << "-> Send diagnostic message positive response" << std::endl;
         unsigned char responseData[] = { 0x62, data[1], data[2], 0x01, 0x02, 0x03, 0x04};
         connection->sendDiagnosticPayload(target_address, responseData, sizeof(responseData));
     } else {
-        cout << "-> Send diagnostic message negative response" << endl;
+        std::cout << "-> Send diagnostic message negative response" << std::endl;
         unsigned char responseData[] = { 0x7F, data[0], 0x11};
         connection->sendDiagnosticPayload(target_address, responseData, sizeof(responseData));
     }
@@ -45,16 +42,16 @@ void ReceiveFromLibrary(DoIPConnection* connection, unsigned short target_addres
  * @param targetAddress     logical address to the ecu
  * @return                  If a positive or negative ACK should be send to the client
  */
-bool DiagnosticMessageReceived(unsigned short targetAddress) {
+bool DiagnosticMessageReceived(std::unique_ptr<DoIPConnection> &connection, unsigned short targetAddress) {
     (void)targetAddress;
     unsigned char ackCode;
 
-    cout << "Received Diagnostic message" << endl;
+    std::cout << "Received Diagnostic message" << std::endl;
 
     //send positiv ack
     ackCode = 0x00;
-    cout << "-> Send positive diagnostic message ack" << endl;
-    //connection->sendDiagnosticAck(LOGICAL_ADDRESS, true, ackCode);
+    std::cout << "-> Send positive diagnostic message ack" << std::endl;
+    connection->sendDiagnosticAck(LOGICAL_ADDRESS, true, ackCode);
 
     return true;
 }
@@ -63,8 +60,8 @@ bool DiagnosticMessageReceived(unsigned short targetAddress) {
  * Closes the connection of the server by ending the listener threads
  */
 void CloseConnection() {
-    // Make sure this is called as a callback, and clean the connections vector
-    cout << "Connection closed" << endl;
+    // TODO Make sure this is called as a callback, and clean the connections vector
+    std::cout << "Connection closed" << std::endl;
     //serverActive = false;
 }
 
@@ -85,21 +82,25 @@ void listenTls(){
 
     while(true) {
         std::cout << "Waiting for Tls Connection" << std::endl;
-        unique_ptr<DoIPConnection> uniConnection = server.waitForTlsConnection();
+        std::unique_ptr<DoIPConnection> uniConnection = server.waitForTlsConnection();
         DoIPConnection *connection = uniConnection.get();
         connections.push_back(std::move(uniConnection));
         std::cout << "A Tls Connection is found!" << std::endl;
-        auto vglambda = [connection](unsigned short address, unsigned char* data, int length)
+        //&last = connections.back()
+        auto receive_lambda = [](unsigned short address, unsigned char* data, int length)
         {
-            ReceiveFromLibrary(connection, address, data, length);
+            ReceiveFromLibrary(connections.back(), address, data, length);
         };
-        connection->setCallback(vglambda, DiagnosticMessageReceived, CloseConnection);
-        connection->setGeneralInactivityTime(50000);
+        auto DMReceived_lambda = [](unsigned short targetAddress) -> bool
+        {
+            return DiagnosticMessageReceived(connections.back(), targetAddress);
+        };
+        connections.back()->setCallback(receive_lambda, DMReceived_lambda, CloseConnection); 
+        connections.back()->setGeneralInactivityTime(50000);
 
-        while(connection->isSocketActive()) {
-            connection->receiveTlsMessage();
+        while(connections.back()->isSocketActive()) {
+            connections.back()->receiveTlsMessage();
         }
-        
     }
 }
 
@@ -116,11 +117,15 @@ void listenTcp() {
         DoIPConnection *connection = uniConnection.get();
         connections.push_back(std::move(uniConnection));
         std::cout << "A Tcp Connection is found!" << std::endl;
-        auto vglambda = [=](unsigned short address, unsigned char* data, int length)
+        auto receive_lambda = [](unsigned short address, unsigned char* data, int length)
         {
-            ReceiveFromLibrary(connection, address, data, length);
+            ReceiveFromLibrary(connections.back(), address, data, length);
         };
-        connection->setCallback(vglambda, DiagnosticMessageReceived, CloseConnection);
+        auto DMReceived_lambda = [](unsigned short targetAddress) -> bool
+        {
+            return DiagnosticMessageReceived(connections.back(), targetAddress);
+        };
+        connection->setCallback(receive_lambda, DMReceived_lambda, CloseConnection);
         connection->setGeneralInactivityTime(50000);
 
          while(connection->isSocketActive()) {
@@ -146,9 +151,9 @@ void ConfigureDoipServer() {
 int main() {
     ConfigureDoipServer();
     serverActive = true;
-    doipReceiver.push_back(thread(&listenUdp));
-    doipReceiver.push_back(thread(&listenTcp));
-    doipReceiver.push_back(thread(&listenTls));
+    doipReceiver.push_back(std::thread(&listenUdp));
+    doipReceiver.push_back(std::thread(&listenTcp));
+    doipReceiver.push_back(std::thread(&listenTls));
     server.sendVehicleAnnouncement();
 
     doipReceiver.at(0).join();
