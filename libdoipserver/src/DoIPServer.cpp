@@ -65,7 +65,7 @@ void DoIPServer::setupTlsSocket() {
 
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
-    serverAddress.sin_port = htons(_ServerPortTLS); // 4433?
+    serverAddress.sin_port = htons(_ServerPortTLS);
     
     //binds the socket to the address and port number
     if (bind(server_socket_tls, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0) {
@@ -95,7 +95,6 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
 
     //SSL_accept() waits for a TLS/SSL client to initiate the TLS/SSL handshake. 
     //The communication channel must already have been set and assigned to the ssl by setting an underlying BIO.
-    std::cout << "waiting for handshake" << std::endl;
     if (SSL_accept(ssl) <= 0) {
         ERR_print_errors_fp(stderr);
         std::cout << "error ssl_accept" << std::endl;
@@ -152,9 +151,9 @@ void DoIPServer::setupUdpSocket() {
  * Closes the socket for this server
  */
 void DoIPServer::closeTlsSocket() {
-    close(server_socket_tls);
     SSL_CTX_free(ctx);
     ctx = nullptr;
+    close(server_socket_tls);
 }
 
 void DoIPServer::closeTcpSocket() {

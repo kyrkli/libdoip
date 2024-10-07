@@ -4,6 +4,8 @@
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import socket
 import ssl
+import time
+
 from scapy.all import *
 from scapy.contrib.automotive.doip import *
 from scapy.contrib.automotive.uds import UDS, UDS_RDBI
@@ -31,19 +33,27 @@ def connect_DoIP_TLS():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         # Wrap the TCP socket with SSL to create a TLS connection
         with context.wrap_socket(sock, server_hostname="127.0.0.1") as ssock:
-            # Connect to the DoIP server
-            ssock.connect((ssock.server_hostname, 4433))
+            try:
+                # Connect to the DoIP server
+                ssock.connect((ssock.server_hostname, 4433))
 
-            # Prepare and send the Routing Activation Request (RAR) packet
-            rar_packet = DoIP(payload_type=0x0005, source_address=0xe80, activation_type=0x00)  # RAR payload type is 0x0005
-            ssock.send(bytes(rar_packet))
+                # Prepare and send the Routing Activation Request (RAR) packet
+                rar_packet = DoIP(payload_type=0x0005, source_address=0xe80, activation_type=0x00)  # RAR payload type is 0x0005
+                ssock.send(bytes(rar_packet))
 
-            # Prepare and send the DoIP diagnostic message packet
-            pkt = DoIP(payload_type=0x8001, source_address=0xe80, target_address=0x1000) / UDS() / UDS_RDBI(identifiers=[0x1000])
-            #pkt = DoIP(payload_type=0x8002, source_address=0xe80, target_address=0x1000) / Raw(load=b"Custom non-diagnostic message")
-            # Send the crafted packet over the TLS connection
-            ssock.send(bytes(pkt))
-            time.sleep(1)
+                # Prepare and send the DoIP diagnostic message packet
+                pkt = DoIP(payload_type=0x8001, source_address=0xe80, target_address=0x1000) / UDS() / UDS_RDBI(identifiers=[0x1000])
+                #pkt = DoIP(payload_type=0x8002, source_address=0xe80, target_address=0x1000) / Raw(load=b"Custom non-diagnostic message")
+                # Send the crafted packet over the TLS connection
+                ssock.send(bytes(pkt))
+            finally:
+                # Ensure the TLS connection is properly closed
+                try:
+                    ssock.unwrap()  # Gracefully close the TLS layer
+                except ssl.SSLError as e:
+                    print(f"Error during SSL unwrap: {e}")
+
 
 if __name__ == '__main__':
     connect_DoIP_TLS()
+
