@@ -105,6 +105,7 @@ unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTLS(unsigned long pay
     unsigned long remainingPayload = payloadLength;
 
     while(remainingPayload > 0) { 
+        std::cout << "receivedData = " << receivedData << std::endl;
         int readBytes = SSL_read(ssl, &receivedData[payloadPos], remainingPayload);
         if(readBytes <= 0) {
             return payloadPos;
@@ -218,6 +219,7 @@ int DoIPConnection::reactOnReceivedTcpMessage(GenericHeaderAction action, unsign
                 return -1;
             } else {
                 //Routing Activation Request was successfull, save address of the client
+                std::cout << "Routing Activation Request was successfull" << std::endl;
                 routedClientAddress = new unsigned char[2];
                 routedClientAddress[0] = payload[0];
                 routedClientAddress[1] = payload[1];
@@ -237,7 +239,7 @@ int DoIPConnection::reactOnReceivedTcpMessage(GenericHeaderAction action, unsign
         }
 
         case PayloadType::DIAGNOSTICMESSAGE: {
-
+            std::cout << "payload = " << payload << std::endl;
             unsigned short target_address = 0;
             target_address |= ((unsigned short)payload[2]) << 8U;
             target_address |= (unsigned short)payload[3];
