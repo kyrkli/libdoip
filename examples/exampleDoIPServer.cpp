@@ -72,6 +72,7 @@ void CloseConnection() {
  * Check permantly if udp message was received
  */
 void listenUdp() {
+    server.setupUdpSocket();
     while(serverActive) {
         server.receiveUdpMessage();
     }
@@ -92,7 +93,7 @@ void listenTls(){
         connection->receiveTlsMessage();
     //}
 }
-
+/*
 void listenTlsTcp() {
     server.setupTlsTcpSocket();
 
@@ -100,7 +101,7 @@ void listenTlsTcp() {
         connection = server.waitForTlsTcpConnection();
     }
 }
-
+*/
 /*
  * Check permantly if tcp message was received
  */
@@ -109,7 +110,9 @@ void listenTcp() {
     server.setupTcpSocket();
 
     while(true) {
+        std::cout << "Waiting for Tcp Connection" << std::endl;
         connection = server.waitForTcpConnection();
+        std::cout << "A Tcp Connection is found!" << std::endl;
         connection->setCallback(ReceiveFromLibrary, DiagnosticMessageReceived, CloseConnection);
         connection->setGeneralInactivityTime(50000);
 
@@ -135,14 +138,14 @@ void ConfigureDoipServer() {
 
 int main() {
     ConfigureDoipServer();
-    server.setupUdpSocket();
     serverActive = true;
     doipReceiver.push_back(thread(&listenUdp));
-    //doipReceiver.push_back(thread(&listenTcp));
+    doipReceiver.push_back(thread(&listenTcp));
     doipReceiver.push_back(thread(&listenTls));
     //server.sendVehicleAnnouncement();
 
     doipReceiver.at(0).join();
     doipReceiver.at(1).join();
+    doipReceiver.at(2).join();
     return 0;
 }
