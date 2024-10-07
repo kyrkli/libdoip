@@ -13,4 +13,5 @@ gcc -o sslecho tls_example.c -lssl -lcrypto
 #-CAfile means to verify the server, otherwise only client verification
 openssl s_client -connect localhost:4433 -cert client-cert.pem -key client-key.pem -CAfile ca-cert.pem
 
-
+#getting the premaster key from tls loopback communication
+HOOKED_SSLKEYLOGFILE=keys.txt PATH=/home/kirill/Desktop/work/bthesis/openssl-keylog:$PATH sslkeylogged ./testExample

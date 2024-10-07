@@ -25,9 +25,8 @@ def connect_DoIP_TLS():
     socket = DoIPSocket(ip="127.0.0.1", tls_port=4433, force_tls=True, context=context)
     pkt = DoIP(payload_type=0x8001, source_address=0xe80, target_address=0x1000) / UDS() / UDS_RDBI(identifiers=[0x1000])
     rep = socket.sr1(pkt, timeout=1)
+    socket.outs.unwrap()
     print(repr(rep))
-    socket.ins.unwrap()
 
 if __name__ == '__main__':
-    connect_DoIP_TLS()
-
+        connect_DoIP_TLS()

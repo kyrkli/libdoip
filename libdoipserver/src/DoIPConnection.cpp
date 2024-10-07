@@ -15,40 +15,51 @@ void DoIPConnection::aliveCheckTimeout() {
 /*
  * Closes the socket for this server
  */
-void DoIPConnection::closeSocket() {
+void DoIPConnection::closeSocket(bool skip_shutdown /*=false*/) {
+    //Closing TLS layer
     if(ssl != nullptr){
         int err;
-        while ((err = ERR_get_error()) != 0) {
+        while ((err = ERR_get_error())) {
             std::cerr << ERR_error_string(err, nullptr) << std::endl;
         }
-        //read shutdown lifecycle, only shutdown if there isnt any error in the queue
-        int ret = SSL_shutdown(ssl);
-        if (ret == 0) {
-            // First shutdown step: client needs to acknowledge shutdown
-            std::cout << "Client hasn't acknowledged shutdown, retrying...\n";
-            ret = SSL_shutdown(ssl);
-        }
+        if(!skip_shutdown){
+            //The current thread's error queue must be empty before the TLS/SSL I/O 
+            //operation is attempted, or SSL_get_error() will not work reliably
 
-        if (ret == 1) {
-            std::cout << "SSL connection closed cleanly\n";
-        } else {
-            std::cerr << "SSL_shutdown returned " << ret << "\n";
-            err = SSL_get_error(ssl, ret);
-            if (err == SSL_ERROR_SYSCALL) {
-                std::cerr << "SSL_shutdown error: I/O error\n";
-            } else if (err == SSL_ERROR_SSL) {
-                std::cerr << "SSL_shutdown error: SSL protocol error\n";
+            //read shutdown lifecycle, only shutdown if there isnt any error in the queue
+            int ret = SSL_shutdown(ssl);
+            if (ret == 0) {
+                // First shutdown step: client needs to acknowledge shutdown
+                std::cout << "Client hasn't acknowledged shutdown, retrying...\n";
+                ret = SSL_shutdown(ssl);
+            }
+
+            if (ret == 1) {
+                std::cout << "SSL connection closed cleanly\n";
             } else {
-                std::cerr << "SSL_shutdown error: " << err << "\n";
+
+                while ((err = ERR_get_error())) {
+                    std::cerr << ERR_error_string(err, nullptr) << std::endl;
+                }
+
+                std::cerr << "SSL_shutdown returned " << ret << "\n";
+                err = SSL_get_error(ssl, ret);
+                if (err == SSL_ERROR_SYSCALL) {
+                   std::cerr << "SSL_shutdown error: I/O error\n";
+                } else if (err == SSL_ERROR_SSL) {
+                    std::cerr << "SSL_shutdown error: SSL protocol error\n";
+                } else {
+                    std::cerr << "SSL_shutdown error: " << err << "\n";
+                }
             }
-            while ((err = ERR_get_error()) != 0) {
-                std::cerr << ERR_error_string(err, nullptr) << std::endl;
-            }
+        } else {
+            std::cout << "Skip shutdown" << std::endl;
         }
 
         SSL_free(ssl);
         ssl = nullptr;
     }
+    //Closing TCP layer
     close(client_sock);
     client_sock = 0;
 }
@@ -100,8 +111,24 @@ unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTLS(unsigned long pay
             int err = SSL_get_error(ssl, readBytes);
             if (err == SSL_ERROR_ZERO_RETURN) {
                 // The peer shut down the connection properly at the TLS layer
-                closeSocket();
+                return payloadPos;
             }
+
+            if (err == SSL_ERROR_SYSCALL) {
+                std::cerr << "SSL_shutdown error: I/O error\n";
+                closeSocket(true);
+            } else if (err == SSL_ERROR_SSL) {
+                std::cerr << "SSL_shutdown error: SSL protocol error\n";
+                closeSocket(true);
+            } else {
+                std::cerr << "SSL_shutdown error: " << err << "\n";
+            }
+
+            while ((err = ERR_get_error())) {
+                std::cerr << ERR_error_string(err, nullptr) << std::endl;
+            }
+            //TODO what is the correct return value in that case?
+            std::cout << "Unexpected failure after SSL_read" << std::endl;
             return payloadPos;
         }
         payloadPos += readBytes;
