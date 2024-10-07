@@ -40,13 +40,13 @@ void configure_context_client_auth(SSL_CTX *ctx)
     }
     
     // Load CA certificate to verify client
-    if (SSL_CTX_load_verify_locations(ctx, "/home/kirill/Desktop/work/bthesis/libdoip/ca_keys/ca-cert.pem", NULL) <= 0) {
+    if (SSL_CTX_load_verify_locations(ctx, "/home/kirill/Desktop/work/bthesis/libdoip/ca_keys/ca-cert.pem", nullptr) <= 0) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
 
     // Require client to present a certificate
-    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
     // set a limit on the number of certificates between the end-entity and trust-anchor certificates.
     SSL_CTX_set_verify_depth(ctx, 1);
 }
@@ -78,7 +78,7 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
         perror("Unable to listen");
         exit(EXIT_FAILURE);
     }
-    int tlsSocket = accept(server_socket_tls, (struct sockaddr*) NULL, NULL);
+    int tlsSocket = accept(server_socket_tls, (struct sockaddr*) nullptr, nullptr);
     if (tlsSocket < 0) {
             perror("Unable to accept");
             exit(EXIT_FAILURE);
@@ -123,7 +123,7 @@ void DoIPServer::setupTcpSocket() {
 std::unique_ptr<DoIPConnection> DoIPServer::waitForTcpConnection() {
     //waits till client approach to make connection
     listen(server_socket_tcp, 5);                                                          
-    int tcpSocket = accept(server_socket_tcp, (struct sockaddr*) NULL, NULL);
+    int tcpSocket = accept(server_socket_tcp, (struct sockaddr*) nullptr, nullptr);
     return std::unique_ptr<DoIPConnection>(new DoIPConnection(tcpSocket, LogicalGatewayAddress));
 }
 

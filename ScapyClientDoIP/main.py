@@ -1,5 +1,6 @@
 import time
 from scapy.all import *
+import socket as socketlib
 from scapy.contrib.automotive.doip import *
 from scapy.contrib.automotive.uds import UDS, UDS_RDBI
 
@@ -23,7 +24,9 @@ def connect_DoIP_TLS():
 
     socket = DoIPSocket(ip="127.0.0.1", tls_port=4433, force_tls=True, context=context)
     pkt = DoIP(payload_type=0x8001, source_address=0xe80, target_address=0x1000) / UDS() / UDS_RDBI(identifiers=[0x1000])
-    socket.sr1(pkt, timeout=1)
+    rep = socket.sr1(pkt, timeout=1)
+    print(repr(rep))
+    socket.ins.unwrap()
 
 if __name__ == '__main__':
     connect_DoIP_TLS()
