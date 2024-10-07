@@ -20,6 +20,57 @@ void DoIPConnection::closeSocket() {
     tcpSocket = 0;
 }
 
+int DoIPConnection::receiveTlsMessage() {
+    char rxbuf[128];
+    size_t rxcap = sizeof(rxbuf);
+    int rxlen;
+
+    /* Echo loop */
+    while (true) {
+        /* Get message from client; will fail if client closes connection */
+        if ((rxlen = SSL_read(ssl, rxbuf, rxcap)) <= 0) {
+            if (rxlen == 0) {
+                printf("Client closed connection\n");
+            } else {
+                printf("SSL_read returned %d\n", rxlen);
+            }
+            ERR_print_errors_fp(stderr);
+            break;
+        }
+        /* Insure null terminated input */
+        rxbuf[rxlen] = 0;
+        /* Look for kill switch */
+        if (strcmp(rxbuf, "kill\n") == 0) {
+            /* Terminate...with extreme prejudice */
+            printf("Server received 'kill' command\n");
+            //server_running = false;
+            break;
+        }
+        /* Show received message */
+        printf("Received: %s", rxbuf);
+        /* Echo it back */
+        if (SSL_write(ssl, rxbuf, rxlen) <= 0) {
+            ERR_print_errors_fp(stderr);
+        }
+    }
+}
+
+unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTLS(unsigned long payloadLength, unsigned char *receivedData) {
+    unsigned long payloadPos = 0;
+    unsigned long remainingPayload = payloadLength;
+
+    while(remainingPayload > 0) {
+        int readBytes = recv(tcpSocket, &receivedData[payloadPos], remainingPayload, 0);
+        if(readBytes <= 0) {
+            return payloadPos;
+        }
+        payloadPos += readBytes;
+        remainingPayload -= readBytes;
+    }
+
+    return payloadPos;
+}
+
 /*
  * Receives a message from the client and calls reactToReceivedTcpMessage method
  * @return      amount of bytes which were send back to client

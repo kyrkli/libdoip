@@ -72,9 +72,24 @@ void CloseConnection() {
  * Check permantly if udp message was received
  */
 void listenUdp() {
-
     while(serverActive) {
         server.receiveUdpMessage();
+    }
+}
+
+
+void listenTls(){
+    server.setupTlsSocket();
+
+    while(true) {
+        std::cout << "Waiting for Tls Connection" << std::endl;
+        connection = server.waitForTlsConnection();
+        std::cout << "A Tls Connection is found!" << std::endl;
+        //connection->setCallback(ReceiveFromLibrary, DiagnosticMessageReceived, CloseConnection);
+        //connection->setGeneralInactivityTime(50000);
+
+        //echo loop
+        connection->receiveTlsMessage();
     }
 }
 
@@ -112,16 +127,16 @@ void ConfigureDoipServer() {
 
 int main() {
     ConfigureDoipServer();
-
     server.setupUdpSocket();
-
     serverActive = true;
     doipReceiver.push_back(thread(&listenUdp));
-    doipReceiver.push_back(thread(&listenTcp));
-
-    server.sendVehicleAnnouncement();
+    //doipReceiver.push_back(thread(&listenTcp));
+    doipReceiver.push_back(thread(&listenTls));
+    //server.sendVehicleAnnouncement();
 
     doipReceiver.at(0).join();
+    std::cout << "6" << std::endl;
     doipReceiver.at(1).join();
+    std::cout << "7" << std::endl;
     return 0;
 }
