@@ -51,9 +51,7 @@ void configure_context_client_auth(SSL_CTX *ctx)
     SSL_CTX_set_verify_depth(ctx, 1);
 }
 
-
 void DoIPServer::setupTlsSocket() {
-
     ctx = create_context();
     //server-cert.pem and server-key.pem
     configure_context_client_auth(ctx);
