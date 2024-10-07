@@ -54,7 +54,6 @@ public:
 
 private:
     
-    SSL *ssl = nullptr; //tls
     int client_sock = 0;//tls or tcp
 
     AliveCheckTimer aliveCheckTimer;
@@ -64,8 +63,10 @@ private:
 
     unsigned char* routedClientAddress;
     unsigned short logicalGatewayAddress = 0x0000;
-        
-    void closeSocket();
+    
+    SSL *ssl = nullptr; //tls
+    
+    void closeSocket(bool skip_shutdown = false);
 
     int reactOnReceivedTcpMessage(GenericHeaderAction action, unsigned long payloadLength, unsigned char *payload);
     
