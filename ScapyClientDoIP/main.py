@@ -29,4 +29,4 @@ def connect_DoIP_TLS():
     socket.outs.unwrap()
 
 if __name__ == '__main__':
-        connect_DoIP_TLS()
+    connect_DoIP_TLS()

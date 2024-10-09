@@ -42,7 +42,7 @@ void DoIPConnection::closeSocket(bool skip_shutdown /*=false*/) {
     std::cout << "CLOSE SOCKET!!!!!!!!" << std::endl;
     if(isSocketActive()){
         //Closing TLS layer
-        if(ssl != nullptr){
+        if(ssl){
             /*  
                 SSL_shutdown() should not be called if a previous fatal error has occurred 
                 on a connection; i.e., if SSL_get_error(3) has returned SSL_ERROR_SYSCALL 
@@ -79,82 +79,33 @@ void DoIPConnection::closeSocket(bool skip_shutdown /*=false*/) {
     }
 }
 
-int DoIPConnection::receiveTlsMessage() {
-    std::cout << "Waiting for DoIP Header..." << std::endl;
-    unsigned char genericHeader[_GenericHeaderLength];
-    unsigned int readBytes = receiveFixedNumberOfBytesFromTLS(_GenericHeaderLength, genericHeader);
-    if(readBytes == _GenericHeaderLength && !aliveCheckTimer.timeout) {
-        std::cout << "Received DoIP Header." << std::endl;
-        GenericHeaderAction doipHeaderAction = parseGenericHeader(genericHeader, _GenericHeaderLength);
-
-        unsigned char *payload = nullptr;
-        if(doipHeaderAction.payloadLength > 0) {
-            std::cout << "Waiting for " << doipHeaderAction.payloadLength << " bytes of payload..." << std::endl;
-            payload = new unsigned char[doipHeaderAction.payloadLength];
-            unsigned int receivedPayloadBytes = receiveFixedNumberOfBytesFromTLS(doipHeaderAction.payloadLength, payload);
-            if(receivedPayloadBytes != doipHeaderAction.payloadLength) {
-                std::cout << "Close tls socket 1" << std::endl;
-                closeSocket();
-                return 0;
-            }
-            std::cout << "DoIP message completely received" << std::endl;
-        }
-
-        //if alive check timouts should be possible, reset timer when message received
-        if(aliveCheckTimer.active) {
-            aliveCheckTimer.resetTimer();
-        }
-
-        int sentBytes = reactOnReceivedTcpMessage(doipHeaderAction, doipHeaderAction.payloadLength, payload);
-        
-        return sentBytes;
-    } else {
-        std::cout << "Close tls socket 2 (received only " << readBytes << " bytes )" << std::endl;
-        closeSocket();
+int DoIPConnection::handle_SSL_read_error(int readBytes){
+    int err = parseSSLerror(ssl, readBytes);
+    switch (err)
+    {
+    case SSL_ERROR_ZERO_RETURN:
+        // The peer shut down the connection properly at the TLS layer
         return 0;
+        break;
+    case SSL_ERROR_SYSCALL:
+    case SSL_ERROR_SSL:
+        closeSocket(true);
+        return -1;
+    default:
+        std::cout << "Unexpected failure after SSL_read" << std::endl;
+        return -1;
     }
-    return -1;
-}
-
-unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTLS(unsigned long payloadLength, unsigned char *receivedData) {
-    unsigned long payloadPos = 0;
-    unsigned long remainingPayload = payloadLength;
-    
-    while(remainingPayload > 0) { 
-        int readBytes = SSL_read(ssl, &receivedData[payloadPos], remainingPayload);
-        if(readBytes <= 0) {
-            int err = parseSSLerror(ssl, readBytes);
-            switch (err)
-            {
-            case SSL_ERROR_ZERO_RETURN:
-                // The peer shut down the connection properly at the TLS layer
-                break;
-            case SSL_ERROR_SYSCALL:
-            case SSL_ERROR_SSL:
-                closeSocket(true);
-                break;
-            default:
-                std::cout << "Unexpected failure after SSL_read" << std::endl;
-                break;
-            }
-            return payloadPos;
-        }
-        payloadPos += readBytes;
-        remainingPayload -= readBytes;
-    }
-
-    return payloadPos;
 }
 
 /*
- * Receives a message from the client and calls reactToReceivedTcpMessage method
+ * Receives a message from the client and calls reactToReceivedTcpOrTlsMessage method
  * @return      amount of bytes which were send back to client
  *              or -1 if error occurred     
  */
-int DoIPConnection::receiveTcpMessage() {
+int DoIPConnection::receiveTcpOrTlsMessage() {
     std::cout << "Waiting for DoIP Header..." << std::endl;
     unsigned char genericHeader[_GenericHeaderLength];
-    unsigned int readBytes = receiveFixedNumberOfBytesFromTCP(_GenericHeaderLength, genericHeader);
+    unsigned int readBytes = receiveFixedNumberOfBytesFromTcpOrTls(_GenericHeaderLength, genericHeader);
     if(readBytes == _GenericHeaderLength && !aliveCheckTimer.timeout) {
         std::cout << "Received DoIP Header." << std::endl;
         GenericHeaderAction doipHeaderAction = parseGenericHeader(genericHeader, _GenericHeaderLength);
@@ -163,9 +114,8 @@ int DoIPConnection::receiveTcpMessage() {
         if(doipHeaderAction.payloadLength > 0) {
             std::cout << "Waiting for " << doipHeaderAction.payloadLength << " bytes of payload..." << std::endl;
             payload = new unsigned char[doipHeaderAction.payloadLength];
-            unsigned int receivedPayloadBytes = receiveFixedNumberOfBytesFromTCP(doipHeaderAction.payloadLength, payload);
+            unsigned int receivedPayloadBytes = receiveFixedNumberOfBytesFromTcpOrTls(doipHeaderAction.payloadLength, payload);
             if(receivedPayloadBytes != doipHeaderAction.payloadLength) {
-                std::cout << "Close tcp socket 1" << std::endl;
                 closeSocket();
                 return 0;
             }
@@ -181,7 +131,6 @@ int DoIPConnection::receiveTcpMessage() {
         
         return sentBytes;
     } else {
-        std::cout << "Close tcp socket 2 (received only " << readBytes << " bytes )" << std::endl;
         closeSocket();
         return 0;
     }
@@ -190,7 +139,7 @@ int DoIPConnection::receiveTcpMessage() {
 }
 
 /**
- * Receive exactly payloadLength bytes from the TCP stream and put them into receivedData.
+ * Receive exactly payloadLength bytes from the TCP or TLS stream and put them into receivedData.
  * The method blocks until receivedData bytes are received or the socket is closed.
  * 
  * The parameter receivedData needs to point to a readily allocated array with
@@ -198,14 +147,23 @@ int DoIPConnection::receiveTcpMessage() {
  * 
  * @return number of bytes received
 */
-unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTCP(unsigned long payloadLength, unsigned char *receivedData) {
+unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTcpOrTls(unsigned long payloadLength, unsigned char *receivedData) {
     unsigned long payloadPos = 0;
     unsigned long remainingPayload = payloadLength;
 
     while(remainingPayload > 0) {
-        int readBytes = recv(client_sock, &receivedData[payloadPos], remainingPayload, 0);
+        int readBytes = 0;
+        
+        if(ssl)
+            readBytes = SSL_read(ssl, &receivedData[payloadPos], remainingPayload);
+        else
+            readBytes = recv(client_sock, &receivedData[payloadPos], remainingPayload, 0);
+        
         if(readBytes <= 0) {
-            return payloadPos;
+            if(ssl)
+                return handle_SSL_read_error(readBytes);
+            else 
+                return payloadPos;
         }
         payloadPos += readBytes;
         remainingPayload -= readBytes;
