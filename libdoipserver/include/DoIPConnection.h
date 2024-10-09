@@ -28,12 +28,9 @@ class DoIPConnection {
 public:
     DoIPConnection(int client_sock, unsigned short logicalGatewayAddress, SSL* ssl = nullptr): 
         client_sock(client_sock), logicalGatewayAddress(logicalGatewayAddress), ssl(ssl){ };
-
-    int receiveTlsMessage();
-    unsigned long receiveFixedNumberOfBytesFromTLS(unsigned long payloadLength, unsigned char *receivedData);
     
-    int receiveTcpMessage();
-    unsigned long receiveFixedNumberOfBytesFromTCP(unsigned long payloadLength, unsigned char *receivedData);
+    int receiveTcpOrTlsMessage();
+    unsigned long receiveFixedNumberOfBytesFromTcpOrTls(unsigned long payloadLength, unsigned char *receivedData);
 
     void sendDiagnosticPayload(unsigned short sourceAddress, unsigned char* data, int length);
     bool isSocketActive() { return client_sock != 0; };
@@ -67,6 +64,8 @@ private:
     int sendMessage(unsigned char* message, int messageLenght);
     
     void aliveCheckTimeout();
+
+    int handle_SSL_read_error(int readBytes);
 };
 
 #endif /* DOIPCONNECTION_H */

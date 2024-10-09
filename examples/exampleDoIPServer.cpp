@@ -101,7 +101,7 @@ void listenTls(){
         connections.back()->setGeneralInactivityTime(50000);
 
         while(connections.back()->isSocketActive()) {
-            connections.back()->receiveTlsMessage();
+            connections.back()->receiveTcpOrTlsMessage();
         }
         
     }
@@ -130,11 +130,12 @@ void listenTcp() {
         {
             return DiagnosticMessageReceived(connections.back(), targetAddress);
         };
+
         connections.back()->setCallback(receive_lambda, DMReceived_lambda, CloseConnection);
         connections.back()->setGeneralInactivityTime(50000);
 
          while(connections.back()->isSocketActive()) {
-             connections.back()->receiveTcpMessage();
+             connections.back()->receiveTcpOrTlsMessage();
          }
     }
 }

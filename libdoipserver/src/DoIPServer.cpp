@@ -69,15 +69,16 @@ void DoIPServer::setupTlsSocket() {
     if (bind(server_socket_tls, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0) {
         perror("Unable to bind");
         exit(EXIT_FAILURE);
-    }; 
-}
+    };
 
-std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
     //waits till client approach to make connection
     if (listen(server_socket_tls, 5) < 0){
         perror("Unable to listen");
         exit(EXIT_FAILURE);
     }
+}
+
+std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
     int tlsSocket = accept(server_socket_tls, (struct sockaddr*) nullptr, nullptr);
     if (tlsSocket < 0) {
             perror("Unable to accept");
@@ -114,14 +115,14 @@ void DoIPServer::setupTcpSocket() {
     
     //binds the socket to the address and port number
     bind(server_socket_tcp, (struct sockaddr *)&serverAddress, sizeof(serverAddress));     
+    //waits till client approach to make connection
+    listen(server_socket_tcp, 5);   
 }
 
 /*
  *  Wait till a client attempts a connection and accepts it
  */
-std::unique_ptr<DoIPConnection> DoIPServer::waitForTcpConnection() {
-    //waits till client approach to make connection
-    listen(server_socket_tcp, 5);                                                          
+std::unique_ptr<DoIPConnection> DoIPServer::waitForTcpConnection() {                                       
     int tcpSocket = accept(server_socket_tcp, (struct sockaddr*) nullptr, nullptr);
     return std::make_unique<DoIPConnection>(tcpSocket, LogicalGatewayAddress);
 }
