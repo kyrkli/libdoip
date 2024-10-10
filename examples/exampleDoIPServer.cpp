@@ -75,68 +75,47 @@ void listenUdp() {
     }
 }
 
+/*
+ * Check permantly if tcp or tls message was received
+ */
+void listenTcpOrTls(bool isTls = false) {
+    server.setupTcpOrTlsSocket(isTls);
 
-void listenTls(){
-
-    server.setupTlsSocket();
-
-    while(true) {
-        std::cout << "Waiting for Tls Connection" << std::endl;
+    while(true){
+        if(isTls){
+            
+            std::cout << "Waiting for Tls Connection" << std::endl;
         
-        std::unique_ptr<DoIPConnection> uniConnection = server.waitForTlsConnection();
-        connections.push_back(std::move(uniConnection));
+            auto uniConnection = server.waitForTlsConnection();
+            connections.push_back(std::move(uniConnection));
+            
+            std::cout << "A Tls Connection is found!" << std::endl;
+        }
+        else {
+            std::cout << "Waiting for Tcp Connection" << std::endl;
         
-        std::cout << "A Tls Connection is found!" << std::endl;
-
-        auto receive_lambda = [](unsigned short address, unsigned char* data, int length)
-        {
-            ReceiveFromLibrary(connections.back(), address, data, length);
-        };
-        auto DMReceived_lambda = [](unsigned short targetAddress) -> bool
-        {
-            return DiagnosticMessageReceived(connections.back(), targetAddress);
-        };
- 
-        connections.back()->setCallback(receive_lambda, DMReceived_lambda, CloseConnection); 
-        connections.back()->setGeneralInactivityTime(50000);
-
-        while(connections.back()->isSocketActive()) {
-            connections.back()->receiveTcpOrTlsMessage();
+            auto uniConnection = server.waitForTcpConnection();
+            connections.push_back(std::move(uniConnection));
+            std::cout << "A Tcp Connection is found!" << std::endl;
         }
         
-    }
-}
-
-/*
- * Check permantly if tcp message was received
- */
-void listenTcp() {
-
-    server.setupTcpSocket();
-
-    while(true) {
-        std::cout << "Waiting for Tcp Connection" << std::endl;
+        auto it_new_conn = --connections.end();
         
-        auto uniConnection = server.waitForTcpConnection();
-        connections.push_back(std::move(uniConnection));
-        
-        std::cout << "A Tcp Connection is found!" << std::endl;
-        
-        auto receive_lambda = [](unsigned short address, unsigned char* data, int length)
+        auto receive_lambda = [&it_new_conn](unsigned short address, unsigned char* data, int length)
         {
-            ReceiveFromLibrary(connections.back(), address, data, length);
+            ReceiveFromLibrary(*it_new_conn, address, data, length);
         };
-        auto DMReceived_lambda = [](unsigned short targetAddress) -> bool
+        auto DMReceived_lambda = [&it_new_conn](unsigned short targetAddress) -> bool
         {
-            return DiagnosticMessageReceived(connections.back(), targetAddress);
+            return DiagnosticMessageReceived(*it_new_conn, targetAddress);
         };
 
-        connections.back()->setCallback(receive_lambda, DMReceived_lambda, CloseConnection);
-        connections.back()->setGeneralInactivityTime(50000);
+        (*it_new_conn)->setCallback(receive_lambda, DMReceived_lambda, CloseConnection);
+        (*it_new_conn)->setGeneralInactivityTime(50000);
 
-         while(connections.back()->isSocketActive()) {
-             connections.back()->receiveTcpOrTlsMessage();
-         }
+        while((*it_new_conn)->isSocketActive()) {
+            (*it_new_conn)->receiveTcpOrTlsMessage();
+        }
     }
 }
 
@@ -158,8 +137,8 @@ int main() {
     ConfigureDoipServer();
     serverActive = true;
     doipReceiver.push_back(std::thread(&listenUdp));
-    doipReceiver.push_back(std::thread(&listenTcp));
-    doipReceiver.push_back(std::thread(&listenTls));
+    doipReceiver.push_back(std::thread(&listenTcpOrTls, false));
+    doipReceiver.push_back(std::thread(&listenTcpOrTls, true));
     server.sendVehicleAnnouncement();
 
     doipReceiver.at(0).join();

@@ -51,37 +51,10 @@ void configure_context_client_auth(SSL_CTX *ctx)
     SSL_CTX_set_verify_depth(ctx, 1);
 }
 
-void DoIPServer::setupTlsSocket() {
-    ctx = create_context();
-    //server-cert.pem and server-key.pem
-    configure_context_client_auth(ctx);
-    server_socket_tls = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_socket_tls < 0) {
-        perror("Unable to create socket");
-        exit(EXIT_FAILURE);
-    }
-
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
-    serverAddress.sin_port = htons(_ServerPortTLS);
-    
-    //binds the socket to the address and port number
-    if (bind(server_socket_tls, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0) {
-        perror("Unable to bind");
-        exit(EXIT_FAILURE);
-    };
-
-    //waits till client approach to make connection
-    if (listen(server_socket_tls, 5) < 0){
-        perror("Unable to listen");
-        exit(EXIT_FAILURE);
-    }
-}
-
 std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
-    int tlsSocket = accept(server_socket_tls, (struct sockaddr*) nullptr, nullptr);
-    if (tlsSocket < 0) {
-            perror("Unable to accept");
+    int client_sock = accept(server_socket_tls, (struct sockaddr*) nullptr, nullptr);
+    if (client_sock < 0) {
+            perror("Unable to accept tls client");
             exit(EXIT_FAILURE);
     }
 
@@ -90,7 +63,7 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
     SSL *ssl = SSL_new(ctx);
     //SSL_set_fd() sets the file descriptor fd as the input/output facility for the TLS/SSL (encrypted) side of ssl. 
     //fd will typically be the socket file descriptor of a network connection.
-    SSL_set_fd(ssl, tlsSocket);
+    SSL_set_fd(ssl, client_sock);
 
     //SSL_accept() waits for a TLS/SSL client to initiate the TLS/SSL handshake. 
     //The communication channel must already have been set and assigned to the ssl by setting an underlying BIO.
@@ -99,32 +72,59 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
         std::cout << "error ssl_accept" << std::endl;
         exit(EXIT_FAILURE);
     }
-    return std::make_unique<DoIPConnection>(tlsSocket, LogicalGatewayAddress, ssl);
+    return std::make_unique<DoIPConnection>(client_sock, LogicalGatewayAddress, ssl);
 }
 
 /*
  * Set up a tcp socket, so the socket is ready to accept a connection 
  */
-void DoIPServer::setupTcpSocket() {
+void DoIPServer::setupTcpOrTlsSocket(bool isTls /*=false*/) {
+    int *socket_ptr;
+    if(isTls){
+        socket_ptr = &server_socket_tls;
+        ctx = create_context();
+        configure_context_client_auth(ctx); //server-cert.pem and server-key.pem
+    }
+    else {
+        socket_ptr = &server_socket_tcp;
+    }
 
-    server_socket_tcp = socket(AF_INET, SOCK_STREAM, 0);
+    *socket_ptr = socket(AF_INET, SOCK_STREAM, 0);
+    if (*socket_ptr < 0) {
+        perror("Unable to create socket");
+        exit(EXIT_FAILURE);
+    }
 
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
-    serverAddress.sin_port = htons(_ServerPortTcpUdp);
-    
+    if(isTls)
+        serverAddress.sin_port = htons(_ServerPortTLS);
+    else
+        serverAddress.sin_port = htons(_ServerPortTcpUdp);
+
     //binds the socket to the address and port number
-    bind(server_socket_tcp, (struct sockaddr *)&serverAddress, sizeof(serverAddress));     
+    if (bind(*socket_ptr, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0) {
+        perror("Unable to bind");
+        exit(EXIT_FAILURE);
+    };
+
     //waits till client approach to make connection
-    listen(server_socket_tcp, 5);   
+    if (listen(*socket_ptr, 5) < 0){
+        perror("Unable to listen");
+        exit(EXIT_FAILURE);
+    } 
 }
 
 /*
  *  Wait till a client attempts a connection and accepts it
  */
 std::unique_ptr<DoIPConnection> DoIPServer::waitForTcpConnection() {                                       
-    int tcpSocket = accept(server_socket_tcp, (struct sockaddr*) nullptr, nullptr);
-    return std::make_unique<DoIPConnection>(tcpSocket, LogicalGatewayAddress);
+    int client_sock = accept(server_socket_tcp, (struct sockaddr*) nullptr, nullptr);
+    if (client_sock < 0) {
+            perror("Unable to accept tcp client");
+            exit(EXIT_FAILURE);
+    }
+    return std::make_unique<DoIPConnection>(client_sock, LogicalGatewayAddress);
 }
 
 void DoIPServer::setupUdpSocket() {
