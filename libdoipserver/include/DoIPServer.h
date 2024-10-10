@@ -31,10 +31,9 @@ class DoIPServer {
 public:
     DoIPServer() = default;
     
-    void setupTlsSocket();
     std::unique_ptr<DoIPConnection> waitForTlsConnection();
 
-    void setupTcpSocket();
+    void setupTcpOrTlsSocket(bool isTls = false);
     std::unique_ptr<DoIPConnection> waitForTcpConnection();
     void setupUdpSocket();
     int receiveUdpMessage();
