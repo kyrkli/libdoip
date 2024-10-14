@@ -3,12 +3,15 @@
 #include<iostream>
 #include<iomanip>
 #include<thread>
+#include <mutex>
 
 static const unsigned short LOGICAL_ADDRESS = 0x28;
 
 DoIPServer server;
 std::vector<std::unique_ptr<DoIPConnection>> connections;
 std::vector<std::thread> doipReceiver;
+std::vector<std::thread> clients;
+std::mutex global_mutex;
 bool serverActive = false;
 
 /**
@@ -59,10 +62,14 @@ bool DiagnosticMessageReceived(std::unique_ptr<DoIPConnection> &connection, unsi
 /**
  * Closes the connection of the server by ending the listener threads
  */
-void CloseConnection() {
+void CloseConnection(std::vector<std::unique_ptr<DoIPConnection>>::iterator &connection_it) {
     // TODO Make sure this is called as a callback, and clean the connections vector
     std::cout << "Connection closed" << std::endl;
+    global_mutex.lock();
+    connections.erase(connection_it);
+    global_mutex.unlock();
     //serverActive = false;
+
 }
 
 /*
@@ -75,6 +82,33 @@ void listenUdp() {
     }
 }
 
+void handleClient(std::vector<std::unique_ptr<DoIPConnection>>::iterator &new_conn_it){        
+    //lambdas for a specific connection TODO comments
+    auto receive_lambda = [&new_conn_it](unsigned short address, unsigned char* data, int length)
+    {
+        ReceiveFromLibrary(*new_conn_it, address, data, length);
+    };
+    auto DMReceived_lambda = [&new_conn_it](unsigned short targetAddress) -> bool
+    {
+        return DiagnosticMessageReceived(*new_conn_it, targetAddress);
+    };
+    auto CloseConnection_l = [&new_conn_it]()
+    {
+        CloseConnection(new_conn_it);
+    };
+
+    (*new_conn_it)->setCallback(receive_lambda, DMReceived_lambda, CloseConnection_l);
+    (*new_conn_it)->setGeneralInactivityTime(50000);
+    std::cout << "New connection! Size of vector of clients: " << clients.size() << " connections: " << connections.size() << std::endl; 
+    //std::this_thread::sleep_for(std::chrono::seconds(10)); // Sleep for 2 seconds
+
+    while((*new_conn_it)->isSocketActive()) {
+        (*new_conn_it)->receiveTcpOrTlsMessage();
+    }
+
+    (*new_conn_it)->triggerDisconnection();
+}
+
 /*
  * Check permantly if tcp or tls message was received
  */
@@ -82,41 +116,49 @@ void listenTcpOrTls(bool isTls = false) {
     server.setupTcpOrTlsSocket(isTls);
 
     while(true){
+        std::unique_ptr<DoIPConnection> uniConnection;
         if(isTls){
-            
             std::cout << "Waiting for Tls Connection" << std::endl;
-        
-            auto uniConnection = server.waitForTlsConnection();
-            connections.push_back(std::move(uniConnection));
-            
+            uniConnection = server.waitForTlsConnection();
             std::cout << "A Tls Connection is found!" << std::endl;
         }
         else {
             std::cout << "Waiting for Tcp Connection" << std::endl;
-        
-            auto uniConnection = server.waitForTcpConnection();
-            connections.push_back(std::move(uniConnection));
+            uniConnection = server.waitForTcpConnection();
             std::cout << "A Tcp Connection is found!" << std::endl;
         }
+        global_mutex.lock();
+        connections.push_back(std::move(uniConnection));
+        auto new_conn_it = --connections.end();
         
-        auto it_new_conn = --connections.end();
+        clients.push_back(std::thread(handleClient, std::ref(new_conn_it)));
+        std::cout << "Hallo........................." << std::endl;
         
-        auto receive_lambda = [&it_new_conn](unsigned short address, unsigned char* data, int length)
-        {
-            ReceiveFromLibrary(*it_new_conn, address, data, length);
-        };
-        auto DMReceived_lambda = [&it_new_conn](unsigned short targetAddress) -> bool
-        {
-            return DiagnosticMessageReceived(*it_new_conn, targetAddress);
-        };
-
-        (*it_new_conn)->setCallback(receive_lambda, DMReceived_lambda, CloseConnection);
-        (*it_new_conn)->setGeneralInactivityTime(50000);
-
-        while((*it_new_conn)->isSocketActive()) {
-            (*it_new_conn)->receiveTcpOrTlsMessage();
+        for (auto it = clients.begin(); it != clients.end();)
+            if (it->joinable())
+                it->detach();
+            else
+                ++it;
+        global_mutex.unlock();
+        /*
+        // Clean up finished threads
+        for (auto it = clients.begin(); it != clients.end();) {
+            if (it->joinable()) {
+                std::cout << "joinable........................." << std::endl;
+                it->join();
+                std::cout << "erase........................." << std::endl;
+                it = clients.erase(it);  // Erase thread after joining
+            } else {
+                ++it;
+            }
         }
+        */
     }
+    /*TODO join at the right place*/
+    global_mutex.lock();
+    for(auto& th : clients)
+        th.join();
+    global_mutex.unlock();
 }
 
 void ConfigureDoipServer() {
@@ -141,8 +183,8 @@ int main() {
     doipReceiver.push_back(std::thread(&listenTcpOrTls, true));
     server.sendVehicleAnnouncement();
 
-    doipReceiver.at(0).join();
-    doipReceiver.at(1).join();
-    doipReceiver.at(2).join();
+    for(auto& th : doipReceiver)
+        th.join();
+
     return 0;
 }
