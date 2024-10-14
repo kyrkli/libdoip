@@ -4,6 +4,8 @@ import socket as socketlib
 from scapy.contrib.automotive.doip import *
 from scapy.contrib.automotive.uds import UDS, UDS_RDBI
 
+from concurrent.futures import ProcessPoolExecutor
+
 def connect_DoIP_TCP():
     socket = DoIPSocket("127.0.0.1")
     pkt = DoIP(payload_type=0x8001, source_address=0xe80, target_address=0x1000) / UDS() / UDS_RDBI(identifiers=[0x1000])
@@ -28,5 +30,16 @@ def connect_DoIP_TLS():
     print(repr(rep))
     socket.outs.unwrap()
 
-if __name__ == '__main__':
+def run_script(i):
+    print(f"Running script instance {i}")
     connect_DoIP_TLS()
+
+if __name__ == '__main__':
+    num_runs = 2  # Number of times to run the script
+
+    with ProcessPoolExecutor() as executor:
+        futures = [executor.submit(run_script, i) for i in range(num_runs)]
+
+        # Optional: wait for all futures to complete
+    for future in futures:
+        future.result()  # This will raise exceptions if any occurred in the threads

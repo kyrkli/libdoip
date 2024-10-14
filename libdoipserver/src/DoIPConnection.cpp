@@ -154,8 +154,9 @@ unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTcpOrTls(unsigned lon
     while(remainingPayload > 0) {
         int readBytes = 0;
         
-        if(ssl)
-            readBytes = SSL_read(ssl, &receivedData[payloadPos], remainingPayload);
+        SSL *s = ssl;
+        if(s)
+            readBytes = SSL_read(s, &receivedData[payloadPos], remainingPayload);
         else
             readBytes = recv(client_sock, &receivedData[payloadPos], remainingPayload, 0);
         
@@ -252,7 +253,8 @@ int DoIPConnection::reactOnReceivedTcpMessage(GenericHeaderAction action, unsign
 
 void DoIPConnection::triggerDisconnection() {
     std::cout << "Application requested to disconnect Client from Server" << std::endl;
-    closeSocket();
+    //closeSocket(); it wasnt commented
+    close_connection();
 }
 
 /**
