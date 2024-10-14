@@ -8,7 +8,7 @@
 static const unsigned short LOGICAL_ADDRESS = 0x28;
 
 DoIPServer server;
-std::vector<std::unique_ptr<DoIPConnection>> connections;
+int connections_count = 0;
 std::vector<std::thread> doipReceiver;
 std::vector<std::thread> clients;
 std::mutex global_mutex;
@@ -62,12 +62,10 @@ bool DiagnosticMessageReceived(std::unique_ptr<DoIPConnection> &connection, unsi
 /**
  * Closes the connection of the server by ending the listener threads
  */
-void CloseConnection(std::vector<std::unique_ptr<DoIPConnection>>::iterator &connection_it) {
+void CloseConnection(std::unique_ptr<DoIPConnection> &connection_it) {
     // TODO Make sure this is called as a callback, and clean the connections vector
     std::cout << "Connection closed" << std::endl;
-    global_mutex.lock();
-    connections.erase(connection_it);
-    global_mutex.unlock();
+    connections_count--;
     //serverActive = false;
 
 }
@@ -82,31 +80,31 @@ void listenUdp() {
     }
 }
 
-void handleClient(std::vector<std::unique_ptr<DoIPConnection>>::iterator &new_conn_it){        
+void handleClient(std::unique_ptr<DoIPConnection> new_conn_it){        
     //lambdas for a specific connection TODO comments
     auto receive_lambda = [&new_conn_it](unsigned short address, unsigned char* data, int length)
     {
-        ReceiveFromLibrary(*new_conn_it, address, data, length);
+        ReceiveFromLibrary(new_conn_it, address, data, length);
     };
     auto DMReceived_lambda = [&new_conn_it](unsigned short targetAddress) -> bool
     {
-        return DiagnosticMessageReceived(*new_conn_it, targetAddress);
+        return DiagnosticMessageReceived(new_conn_it, targetAddress);
     };
     auto CloseConnection_l = [&new_conn_it]()
     {
         CloseConnection(new_conn_it);
     };
 
-    (*new_conn_it)->setCallback(receive_lambda, DMReceived_lambda, CloseConnection_l);
-    (*new_conn_it)->setGeneralInactivityTime(50000);
-    std::cout << "New connection! Size of vector of clients: " << clients.size() << " connections: " << connections.size() << std::endl; 
+    (new_conn_it)->setCallback(receive_lambda, DMReceived_lambda, CloseConnection_l);
+    (new_conn_it)->setGeneralInactivityTime(50000);
+    std::cout << "New connection! Size of vector of clients: " << clients.size() << " connections: " << connections_count << std::endl; 
     //std::this_thread::sleep_for(std::chrono::seconds(10)); // Sleep for 2 seconds
 
-    while((*new_conn_it)->isSocketActive()) {
-        (*new_conn_it)->receiveTcpOrTlsMessage();
+    while((new_conn_it)->isSocketActive()) {
+        (new_conn_it)->receiveTcpOrTlsMessage();
     }
 
-    (*new_conn_it)->triggerDisconnection();
+    (new_conn_it)->triggerDisconnection();
 }
 
 /*
@@ -127,11 +125,10 @@ void listenTcpOrTls(bool isTls = false) {
             uniConnection = server.waitForTcpConnection();
             std::cout << "A Tcp Connection is found!" << std::endl;
         }
+        connections_count++;
         global_mutex.lock();
-        connections.push_back(std::move(uniConnection));
-        auto new_conn_it = --connections.end();
         
-        clients.push_back(std::thread(handleClient, std::ref(new_conn_it)));
+        clients.push_back(std::thread(handleClient, std::move(uniConnection)));
         std::cout << "Hallo........................." << std::endl;
         
         for (auto it = clients.begin(); it != clients.end();)
