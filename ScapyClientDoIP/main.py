@@ -35,7 +35,7 @@ def run_script(i):
     connect_DoIP_TLS()
 
 if __name__ == '__main__':
-    num_runs = 2  # Number of times to run the script
+    num_runs = 5  # Number of times to run the script
 
     with ProcessPoolExecutor() as executor:
         futures = [executor.submit(run_script, i) for i in range(num_runs)]
