@@ -8,10 +8,7 @@
 static const unsigned short LOGICAL_ADDRESS = 0x28;
 
 DoIPServer server;
-int connections_count = 0;
 std::vector<std::thread> doipReceiver;
-std::vector<std::thread> clients;
-std::mutex global_mutex;
 bool serverActive = false;
 
 /**
@@ -62,12 +59,9 @@ bool DiagnosticMessageReceived(std::unique_ptr<DoIPConnection> &connection, unsi
 /**
  * Closes the connection of the server by ending the listener threads
  */
-void CloseConnection(std::unique_ptr<DoIPConnection> &connection_it) {
-    // TODO Make sure this is called as a callback, and clean the connections vector
-    std::cout << "Connection closed" << std::endl;
-    connections_count--;
-    //serverActive = false;
-
+void CloseConnection() {
+    std::cout << "Connection closed." << std::endl;
+    //--connections_counter;
 }
 
 /*
@@ -80,31 +74,26 @@ void listenUdp() {
     }
 }
 
-void handleClient(std::unique_ptr<DoIPConnection> new_conn_it){        
-    //lambdas for a specific connection TODO comments
-    auto receive_lambda = [&new_conn_it](unsigned short address, unsigned char* data, int length)
+void handleClient(std::unique_ptr<DoIPConnection> &&new_conn){        
+    //Lambdas for a specific connection
+    auto ReceiveFromLibrary_l = [&new_conn](unsigned short address, unsigned char* data, int length)
     {
-        ReceiveFromLibrary(new_conn_it, address, data, length);
+        ReceiveFromLibrary(new_conn, address, data, length);
     };
-    auto DMReceived_lambda = [&new_conn_it](unsigned short targetAddress) -> bool
+    auto DiagnosticMessageReceived_l = [&new_conn](unsigned short targetAddress) -> bool
     {
-        return DiagnosticMessageReceived(new_conn_it, targetAddress);
-    };
-    auto CloseConnection_l = [&new_conn_it]()
-    {
-        CloseConnection(new_conn_it);
+        return DiagnosticMessageReceived(new_conn, targetAddress);
     };
 
-    (new_conn_it)->setCallback(receive_lambda, DMReceived_lambda, CloseConnection_l);
-    (new_conn_it)->setGeneralInactivityTime(50000);
-    std::cout << "New connection! Size of vector of clients: " << clients.size() << " connections: " << connections_count << std::endl; 
-    //std::this_thread::sleep_for(std::chrono::seconds(10)); // Sleep for 2 seconds
+    new_conn->setCallback(ReceiveFromLibrary_l, DiagnosticMessageReceived_l, CloseConnection);
+    new_conn->setGeneralInactivityTime(50000);
 
-    while((new_conn_it)->isSocketActive()) {
-        (new_conn_it)->receiveTcpOrTlsMessage();
+    while(new_conn->isSocketActive()) {
+        new_conn->receiveTcpOrTlsMessage();
     }
 
-    (new_conn_it)->triggerDisconnection();
+    //Dissconect the client from the application
+    new_conn->triggerDisconnection();
 }
 
 /*
@@ -125,37 +114,9 @@ void listenTcpOrTls(bool isTls = false) {
             uniConnection = server.waitForTcpConnection();
             std::cout << "A Tcp Connection is found!" << std::endl;
         }
-        connections_count++;
-        global_mutex.lock();
-        
-        clients.push_back(std::thread(handleClient, std::move(uniConnection)));
-        std::cout << "Hallo........................." << std::endl;
-        
-        for (auto it = clients.begin(); it != clients.end();)
-            if (it->joinable())
-                it->detach();
-            else
-                ++it;
-        global_mutex.unlock();
-        /*
-        // Clean up finished threads
-        for (auto it = clients.begin(); it != clients.end();) {
-            if (it->joinable()) {
-                std::cout << "joinable........................." << std::endl;
-                it->join();
-                std::cout << "erase........................." << std::endl;
-                it = clients.erase(it);  // Erase thread after joining
-            } else {
-                ++it;
-            }
-        }
-        */
+        //++connections_counter;
+        std::thread(handleClient, std::move(uniConnection)).detach();
     }
-    /*TODO join at the right place*/
-    global_mutex.lock();
-    for(auto& th : clients)
-        th.join();
-    global_mutex.unlock();
 }
 
 void ConfigureDoipServer() {
