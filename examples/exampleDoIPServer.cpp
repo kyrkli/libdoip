@@ -10,6 +10,7 @@ static const unsigned short LOGICAL_ADDRESS = 0x28;
 DoIPServer server;
 std::vector<std::thread> doipReceiver;
 bool serverActive = false;
+int connections_counter = 0;
 
 /**
  * Is called when the doip library receives a diagnostic message.
@@ -17,7 +18,7 @@ bool serverActive = false;
  * @param data      message which was received
  * @param length    length of the message
  */
-void ReceiveFromLibrary(std::unique_ptr<DoIPConnection> &connection, unsigned short target_address, unsigned char* data, int length) {
+void ReceiveFromLibrary(const std::unique_ptr<DoIPConnection> &connection, const unsigned short target_address, const unsigned char* data, const int length) {
     std::cout << "DoIP Message received with target address 0x" << std::hex << target_address << ": ";
     for(int i = 0; i < length; i++) {
         std::cout << std::hex << std::setw(2) << (int)data[i] << " ";
@@ -42,7 +43,7 @@ void ReceiveFromLibrary(std::unique_ptr<DoIPConnection> &connection, unsigned sh
  * @param targetAddress     logical address to the ecu
  * @return                  If a positive or negative ACK should be send to the client
  */
-bool DiagnosticMessageReceived(std::unique_ptr<DoIPConnection> &connection, unsigned short targetAddress) {
+bool DiagnosticMessageReceived(const std::unique_ptr<DoIPConnection> &connection, const unsigned short targetAddress) {
     (void)targetAddress;
     unsigned char ackCode;
 
@@ -61,7 +62,7 @@ bool DiagnosticMessageReceived(std::unique_ptr<DoIPConnection> &connection, unsi
  */
 void CloseConnection() {
     std::cout << "Connection closed." << std::endl;
-    //--connections_counter;
+    --connections_counter;
 }
 
 /*
@@ -99,7 +100,7 @@ void handleClient(std::unique_ptr<DoIPConnection> &&new_conn){
 /*
  * Check permantly if tcp or tls message was received
  */
-void listenTcpOrTls(bool isTls = false) {
+void listenTcpOrTls(const bool isTls = false) {
     server.setupTcpOrTlsSocket(isTls);
 
     while(true){
@@ -114,7 +115,7 @@ void listenTcpOrTls(bool isTls = false) {
             uniConnection = server.waitForTcpConnection();
             std::cout << "A Tcp Connection is found!" << std::endl;
         }
-        //++connections_counter;
+        ++connections_counter;
         std::thread(handleClient, std::move(uniConnection)).detach();
     }
 }
