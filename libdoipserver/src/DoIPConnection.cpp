@@ -4,9 +4,9 @@
 #include <iomanip>
 
 int parseSSLerror(const SSL *ssl, int ret){
-    /*  
-        The current thread's error queue must be empty before the TLS/SSL I/O 
-        operation is attempted, or SSL_get_error() will not work reliably   
+    /*
+        The current thread's error queue must be empty before the TLS/SSL I/O
+        operation is attempted, or SSL_get_error() will not work reliably
     */
     ERR_print_errors_fp(stderr);
     int err = SSL_get_error(ssl, ret);
@@ -23,7 +23,7 @@ int parseSSLerror(const SSL *ssl, int ret){
             std::cerr << "SSL Not considered error: " << err << std::endl;
             return err;
     }
-    
+
 }
 
 /**
@@ -43,16 +43,16 @@ void DoIPConnection::closeSocket(bool skip_shutdown /*=false*/) {
     if(isSocketActive()){
         //Closing TLS layer
         if(ssl){
-            /*  
-                SSL_shutdown() should not be called if a previous fatal error has occurred 
-                on a connection; i.e., if SSL_get_error(3) has returned SSL_ERROR_SYSCALL 
+            /*
+                SSL_shutdown() should not be called if a previous fatal error has occurred
+                on a connection; i.e., if SSL_get_error(3) has returned SSL_ERROR_SYSCALL
                 or SSL_ERROR_SSL.
                 For that is the skip_shutdown responsible.
             */
             if(!skip_shutdown){
                 //read shutdown lifecycle, only shutdown if there isnt any error in the queue
                 int ret = SSL_shutdown(ssl);
-                
+
                 if (ret == 0) {
                     // First shutdown step: client needs to acknowledge shutdown
                     std::cout << "Client hasn't acknowledged shutdown, retrying...\n";
@@ -100,7 +100,7 @@ int DoIPConnection::handle_SSL_read_error(int readBytes){
 /*
  * Receives a message from the client and calls reactToReceivedTcpOrTlsMessage method
  * @return      amount of bytes which were send back to client
- *              or -1 if error occurred     
+ *              or -1 if error occurred
  */
 int DoIPConnection::receiveTcpOrTlsMessage() {
     std::cout << "Waiting for DoIP Header..." << std::endl;
@@ -128,23 +128,23 @@ int DoIPConnection::receiveTcpOrTlsMessage() {
         }
 
         int sentBytes = reactOnReceivedTcpMessage(doipHeaderAction, doipHeaderAction.payloadLength, payload);
-        
+
         return sentBytes;
     } else {
         closeSocket();
         return 0;
     }
     return -1;
-      
+
 }
 
 /**
  * Receive exactly payloadLength bytes from the TCP or TLS stream and put them into receivedData.
  * The method blocks until receivedData bytes are received or the socket is closed.
- * 
+ *
  * The parameter receivedData needs to point to a readily allocated array with
  * at least payloadLength items.
- * 
+ *
  * @return number of bytes received
 */
 unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTcpOrTls(unsigned long payloadLength, unsigned char *receivedData) {
@@ -153,17 +153,17 @@ unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTcpOrTls(unsigned lon
 
     while(remainingPayload > 0) {
         int readBytes = 0;
-        
+
         SSL *s = ssl;
         if(s)
             readBytes = SSL_read(s, &receivedData[payloadPos], remainingPayload);
         else
             readBytes = recv(client_sock, &receivedData[payloadPos], remainingPayload, 0);
-        
+
         if(readBytes <= 0) {
             if(ssl)
                 return handle_SSL_read_error(readBytes);
-            else 
+            else
                 return payloadPos;
         }
         payloadPos += readBytes;
@@ -176,7 +176,7 @@ unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTcpOrTls(unsigned lon
 /*
  * Receives a message from the client and determine how to process the message
  * @return      amount of bytes which were send back to client
- *              or -1 if error occurred     
+ *              or -1 if error occurred
  */
 int DoIPConnection::reactOnReceivedTcpMessage(GenericHeaderAction action, unsigned long payloadLength, unsigned char *payload) {
 
@@ -188,7 +188,7 @@ int DoIPConnection::reactOnReceivedTcpMessage(GenericHeaderAction action, unsign
             std::cout << "payloadtype NACK" << std::endl;
             sentBytes = sendNegativeAck(action.value);
 
-            if(action.value == _IncorrectPatternFormatCode || 
+            if(action.value == _IncorrectPatternFormatCode ||
                     action.value == _InvalidPayloadLengthCode) {
                 closeSocket();
                 return -1;
@@ -247,7 +247,7 @@ int DoIPConnection::reactOnReceivedTcpMessage(GenericHeaderAction action, unsign
             std::cerr << "Received message with unhandled payload type: " << action.type << std::endl;
             return -1;
         }
-    }  
+    }
     return -1;
 }
 
@@ -276,7 +276,7 @@ int DoIPConnection::sendMessage(unsigned char* message, int messageLength) {
             }
             return sentBytes;
         }
-    
+
 }
 
 /**
@@ -302,11 +302,11 @@ void DoIPConnection::sendDiagnosticPayload(unsigned short sourceAddress, unsigne
 
     std::cout << "Sending diagnostic data: ";
     for(int i = 0; i < length; i++) {
-        std::cout << std::hex << std::setw(2) << (unsigned int)data[i] << " ";
+        std::cout << std::setfill('0') << std::setw(2) << std::hex << (unsigned int)data[i] << " ";
     }
     std::cout << std::endl;
-    
-    unsigned char* message = createDiagnosticMessage(sourceAddress, routedClientAddress, data, length);  
+
+    unsigned char* message = createDiagnosticMessage(sourceAddress, routedClientAddress, data, length);
     sendMessage(message, _GenericHeaderLength + _DiagnosticMessageMinimumLength + length);
 }
 
@@ -324,7 +324,7 @@ void DoIPConnection::setCallback(DiagnosticCallback dc, DiagnosticMessageNotific
 
 void DoIPConnection::sendDiagnosticAck(unsigned short sourceAddress, bool ackType, unsigned char ackCode) {
     unsigned char data_TA [2] = { routedClientAddress[0], routedClientAddress[1] };
-    
+
     unsigned char* message = createDiagnosticACK(ackType, sourceAddress, data_TA, ackCode);
     sendMessage(message, _GenericHeaderLength + _DiagnosticPositiveACKLength);
 }

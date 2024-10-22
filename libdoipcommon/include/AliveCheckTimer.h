@@ -14,14 +14,14 @@ public:
     void setTimer(uint16_t seconds);
     void startTimer();
     void resetTimer();
-    
+
     bool disabled = false;
     bool active = false;
     bool timeout = false;
     CloseConnectionCallback cb;
-    
+
     ~AliveCheckTimer();
-    
+
 private:
     std::vector<std::thread> timerThreads;
     void waitForResponse();

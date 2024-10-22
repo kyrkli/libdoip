@@ -25,16 +25,16 @@ class VehicleIdentificationHandlerTest : public ::testing::Test {
 TEST_F(VehicleIdentificationHandlerTest, Vin17Bytes) {
 	// Call function under test to create message
 	unsigned char * message = createVehicleIdentificationResponse(matchingVIN, 0, EID, GID, far);
-	
+
 	// Extract VIN from created test message
 	char tempvin[18]; // Need 1 byte more for \0 at the end for parsing via string()
         for(int i=0; i<=16; i++) {
 		tempvin[i] = message[i+8];
 	}
 	tempvin[17] = 0; // Mark end of string
-	
+
 	delete[] message;
-	
+
 	// Assert that extracted VIN matches input data
 	string expected = string(tempvin);
 	EXPECT_EQ(matchingVIN, expected) << "Setting VIN with 17 bytes failed";
@@ -46,7 +46,7 @@ TEST_F(VehicleIdentificationHandlerTest, Vin17Bytes) {
 TEST_F(VehicleIdentificationHandlerTest, VinLessThan17Bytes) {
 	// Call function under test to create message
 	unsigned char * message = createVehicleIdentificationResponse(shortVIN, 0, EID, GID, far);
-	
+
 	// Extract VIN from created test message
 	char c_tempvin[18];
         for(int i=0; i<=16; i++) {
@@ -59,7 +59,7 @@ TEST_F(VehicleIdentificationHandlerTest, VinLessThan17Bytes) {
 
 	// Assert that extracted VIN matches input data
 	EXPECT_EQ(shortVINPadded, actualVin) << "Setting VIN with < 17 bytes failed";
-	
+
 	// Assert message after shortVin bytes is padded with '0'
 	for(int i=16; i<=24; i++) {
 		EXPECT_EQ(message[i], '0') << "VIN not correctly padded at byte: " << i;

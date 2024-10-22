@@ -17,9 +17,9 @@ const int _maxDataSize=64;
 
 
 class DoIPClient{
-    
+
 public:
-    void startTcpConnection();   
+    void startTcpConnection();
     void startUdpConnection();
     void sendRoutingActivationRequest();
     void sendVehicleIdentificationRequest(const char* address);
@@ -36,24 +36,24 @@ public:
 
     int getSockFd();
     int getConnected();
-    
+
 private:
     unsigned char _receivedData[_maxDataSize];
     int _sockFd, _sockFd_udp, _connected;
     int broadcast = 1;
-    struct sockaddr_in _serverAddr, _clientAddr; 
+    struct sockaddr_in _serverAddr, _clientAddr;
     unsigned char sourceAddress [2];
-    
+
     unsigned char VINResult [17];
     unsigned char LogicalAddressResult [2];
     unsigned char EIDResult [6];
     unsigned char GIDResult [6];
     unsigned char FurtherActionReqResult;
-    
+
     const std::pair<int, unsigned char*>* buildRoutingActivationRequest();
     const std::pair<int, unsigned char*>* buildVehicleIdentificationRequest();
     void parseVIResponseInformation(unsigned char* data);
-    
+
     int emptyMessageCounter = 0;
 };
 

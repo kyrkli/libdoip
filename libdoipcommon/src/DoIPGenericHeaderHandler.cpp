@@ -12,12 +12,12 @@ using namespace std;
  *                      payload type and a byte for further message processing
  */
 GenericHeaderAction parseGenericHeader(unsigned char* data, int dataLenght) {
-    
+
     GenericHeaderAction action;
-    
+
     //Only check header if received data is greater or equals the set header length
     if(dataLenght >= _GenericHeaderLength) {
-        
+
         //Check Generic DoIP synchronization pattern
         if((int)(data[1] ^ (0xFF)) != (int)data[0]) {
             //Return Error, Protocol Version not correct
@@ -48,10 +48,10 @@ GenericHeaderAction parseGenericHeader(unsigned char* data, int dataLenght) {
         }
         else if(data[2] == 0x80 && data[3] == 0x01) {   //Value of Diagnose Message = 0x8001
             messagePayloadType = PayloadType::DIAGNOSTICMESSAGE;
-        } 
+        }
         else if(data[2] == 0x80 && data[3] == 0x02) {   //Value of Diagnostic Message positive ack = 0x8002
             messagePayloadType = PayloadType::DIAGNOSTICPOSITIVEACK;
-        } 
+        }
         else if(data[2] == 0x80 && data[3] == 0x03) {   //Value of Diagnostic Message negative ack = 0x8003
             messagePayloadType = PayloadType::DIAGNOSTICNEGATIVEACK;
         } else {
@@ -80,7 +80,7 @@ GenericHeaderAction parseGenericHeader(unsigned char* data, int dataLenght) {
                 }
                 break;
             }
-            
+
             case PayloadType::VEHICLEIDENTREQUEST: {
                 if(payloadLength != 0) {
                     action.type = PayloadType::NEGATIVEACK;
@@ -105,7 +105,7 @@ GenericHeaderAction parseGenericHeader(unsigned char* data, int dataLenght) {
                     action.value = _InvalidPayloadLengthCode;
                     return action;
                 }
-                break;	
+                break;
             }
 
             case PayloadType::DIAGNOSTICPOSITIVEACK: {
@@ -126,12 +126,12 @@ GenericHeaderAction parseGenericHeader(unsigned char* data, int dataLenght) {
 
             default: {
                 std::cerr << "not handled payload type occured in parseGenericHeader()" << std::endl;
-                break;	
+                break;
             }
         }
         action.type = messagePayloadType;
     }
-    
+
     return action;
 }
 
@@ -151,7 +151,7 @@ unsigned char* createGenericHeader(PayloadType type, uint32_t length) {
             header[3] = 0x06;
             break;
         }
-			
+
         case PayloadType::NEGATIVEACK: {
             header[2] = 0x00;
             header[3] = 0x00;
@@ -181,7 +181,7 @@ unsigned char* createGenericHeader(PayloadType type, uint32_t length) {
             header[3] = 0x03;
             break;
         }
-        
+
         case PayloadType::ALIVECHECKRESPONSE: {
             header[2] = 0x00;
             header[3] = 0x08;
@@ -193,11 +193,11 @@ unsigned char* createGenericHeader(PayloadType type, uint32_t length) {
             break;
         }
     }
-    
+
     header[4] = (length >> 24) & 0xFF;
     header[5] = (length >> 16) & 0xFF;
     header[6] = (length >> 8) & 0xFF;
     header[7] = length & 0xFF;
-    
+
     return header;
 }

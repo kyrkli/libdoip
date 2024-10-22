@@ -46,15 +46,15 @@ unsigned char parseDiagnosticMessage(DiagnosticCallback callback, unsigned char 
  * @param responseCode		positive or negative acknowledge code
  * @return pointer to the created diagnostic message acknowledge
  */
-unsigned char* createDiagnosticACK(bool ackType, unsigned short sourceAddress, 
+unsigned char* createDiagnosticACK(bool ackType, unsigned short sourceAddress,
                                     unsigned char targetAddress [2], unsigned char responseCode) {
-    
+
     PayloadType type;
     if(ackType)
         type = PayloadType::DIAGNOSTICPOSITIVEACK;
     else
         type = PayloadType::DIAGNOSTICNEGATIVEACK;
-    
+
     unsigned char* message = createGenericHeader(type, _DiagnosticPositiveACKLength);
 
     //add source address to the message
@@ -80,7 +80,7 @@ unsigned char* createDiagnosticACK(bool ackType, unsigned short sourceAddress,
  */
 unsigned char* createDiagnosticMessage(unsigned short sourceAddress, unsigned char targetAddress [2],
                                         unsigned char* userData, int userDataLength) {
-    
+
     unsigned char* message = createGenericHeader(PayloadType::DIAGNOSTICMESSAGE, _DiagnosticMessageMinimumLength + userDataLength);
 
     //add source address to the message
@@ -93,7 +93,7 @@ unsigned char* createDiagnosticMessage(unsigned short sourceAddress, unsigned ch
 
     //add userdata to the message
     for(int i = 0; i < userDataLength; i++) {
-        message[12 + i] = userData[i];	
+        message[12 + i] = userData[i];
     }
 
     return message;

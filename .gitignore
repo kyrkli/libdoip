@@ -41,4 +41,9 @@ build/
 # vscode
 .vscode
 .idea
-venv
+
+# python
+__pycache__/
+venv/
+.venv/
+.mypy_cache/

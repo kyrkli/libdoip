@@ -30,7 +30,7 @@ class DoIPServer {
 
 public:
     DoIPServer() = default;
-    
+
     std::unique_ptr<DoIPConnection> waitForTlsConnection();
 
     void setupTcpOrTlsSocket(bool isTls = false);
@@ -41,7 +41,7 @@ public:
     void closeTlsSocket();
     void closeTcpSocket();
     void closeUdpSocket();
-    
+
     int sendVehicleAnnouncement();
 
     void setEIDdefault();
@@ -67,16 +67,16 @@ private:
     unsigned char EID [6];
     unsigned char GID [6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     unsigned char FurtherActionReq = 0x00;
-    
+
     int A_DoIP_Announce_Num = 3;    //Default Value = 3
     int A_DoIP_Announce_Interval = 500; //Default Value = 500ms
-    
+
     int broadcast = 1;
-    
+
     int reactToReceivedUdpMessage(int readedBytes);
-    
+
     int sendUdpMessage(unsigned char* message, int messageLength);
-    
+
     void setMulticastGroup(const char* address);
 };
 
