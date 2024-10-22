@@ -7,16 +7,16 @@ void DoIPClient::startTcpConnection() {
 
     const char* ipAddr = "127.0.0.1";
     bool connectedFlag = false;
-    _sockFd = socket(AF_INET,SOCK_STREAM,0);   
-    
+    _sockFd = socket(AF_INET,SOCK_STREAM,0);
+
     if(_sockFd>=0)
     {
         std::cout << "Client TCP-Socket created successfully" << std::endl;
 
         _serverAddr.sin_family = AF_INET;
         _serverAddr.sin_port = htons(_serverPortNr);
-        inet_aton(ipAddr,&(_serverAddr.sin_addr)); 
-        
+        inet_aton(ipAddr,&(_serverAddr.sin_addr));
+
         while(!connectedFlag)
         {
             _connected = connect(_sockFd,(struct sockaddr *) &_serverAddr,sizeof(_serverAddr));
@@ -25,26 +25,26 @@ void DoIPClient::startTcpConnection() {
                 connectedFlag = true;
                 std::cout << "Connection to server established" << std::endl;
             }
-        }  
-    }   
+        }
+    }
 }
 
 void DoIPClient::startUdpConnection(){
-    
-    _sockFd_udp = socket(AF_INET,SOCK_DGRAM, 0); 
-    
+
+    _sockFd_udp = socket(AF_INET,SOCK_DGRAM, 0);
+
     if(_sockFd_udp >= 0)
     {
         std::cout << "Client-UDP-Socket created successfully" << std::endl;
-        
+
         _serverAddr.sin_family = AF_INET;
         _serverAddr.sin_port = htons(_serverPortNr);
         _serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-        
+
         _clientAddr.sin_family = AF_INET;
         _clientAddr.sin_port = htons(_serverPortNr);
         _clientAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-        
+
         //binds the socket to any IP Address and the Port Number 13400
         bind(_sockFd_udp, (struct sockaddr *)&_clientAddr, sizeof(_clientAddr));
     }
@@ -53,8 +53,8 @@ void DoIPClient::startUdpConnection(){
 /*
  * closes the client-socket
  */
-void DoIPClient::closeTcpConnection(){  
-    close(_sockFd); 
+void DoIPClient::closeTcpConnection(){
+    close(_sockFd);
 }
 
 void DoIPClient::closeUdpConnection(){
@@ -70,21 +70,21 @@ void DoIPClient::reconnectServer(){
  *Build the Routing-Activation-Request for server
  */
 const std::pair<int,unsigned char*>* DoIPClient::buildRoutingActivationRequest() {
-    
+
    std::pair <int,unsigned char*>* rareqWithLength= new std::pair<int,unsigned char*>();
    int rareqLength=15;
    unsigned char * rareq= new unsigned char[rareqLength];
-  
+
    //Generic Header
    rareq[0]=0x02;  //Protocol Version
    rareq[1]=0xFD;  //Inverse Protocol Version
    rareq[2]=0x00;  //Payload-Type
    rareq[3]=0x05;
    rareq[4]=0x00;  //Payload-Length
-   rareq[5]=0x00;  
+   rareq[5]=0x00;
    rareq[6]=0x00;
    rareq[7]=0x07;
-   
+
    //Payload-Type specific message-content
    rareq[8]=0x0E;  //Source Address
    rareq[9]=0x00;
@@ -93,10 +93,10 @@ const std::pair<int,unsigned char*>* DoIPClient::buildRoutingActivationRequest()
    rareq[12]=0x00;
    rareq[13]=0x00;
    rareq[14]=0x00;
-   
+
    rareqWithLength->first=rareqLength;
    rareqWithLength->second=rareq;
-  
+
    return rareqWithLength;
 }
 
@@ -104,9 +104,9 @@ const std::pair<int,unsigned char*>* DoIPClient::buildRoutingActivationRequest()
  * Send the builded request over the tcp-connection to server
  */
 void DoIPClient::sendRoutingActivationRequest() {
-        
+
     const std::pair <int,unsigned char*>* rareqWithLength=buildRoutingActivationRequest();
-    write(_sockFd,rareqWithLength->second,rareqWithLength->first);    
+    write(_sockFd,rareqWithLength->second,rareqWithLength->first);
 }
 
 /**
@@ -137,13 +137,13 @@ void DoIPClient::sendAliveCheckResponse() {
  * Receive a message from server
  */
 void DoIPClient::receiveMessage() {
-    
+
     int readedBytes = recv(_sockFd,_receivedData,_maxDataSize, 0);
-    
+
     if(!readedBytes) //if server is disconnected from client; client gets empty messages
     {
         emptyMessageCounter++;
-        
+
         if(emptyMessageCounter == 5)
         {
             std::cout << "Received to many empty messages. Reconnect TCP connection" << std::endl;
@@ -152,14 +152,14 @@ void DoIPClient::receiveMessage() {
         }
         return;
     }
-	
+
     printf("Client received: ");
     for(int i = 0; i < readedBytes; i++)
     {
         printf("0x%02X ", _receivedData[i]);
-    }    
-    printf("\n ");	
-    
+    }
+    printf("\n ");
+
     GenericHeaderAction action = parseGenericHeader(_receivedData, readedBytes);
 
     if(action.type == PayloadType::DIAGNOSTICPOSITIVEACK || action.type == PayloadType::DIAGNOSTICNEGATIVEACK) {
@@ -181,25 +181,25 @@ void DoIPClient::receiveMessage() {
         }
         std::cout << std::endl;
     }
- 
+
 }
 
 void DoIPClient::receiveUdpMessage() {
-    
+
     unsigned int length = sizeof(_clientAddr);
-    
+
     int readedBytes;
     readedBytes = recvfrom(_sockFd_udp, _receivedData, _maxDataSize, 0, (struct sockaddr*)&_clientAddr, &length);
-    
+
     if(PayloadType::VEHICLEIDENTRESPONSE == parseGenericHeader(_receivedData, readedBytes).type)
     {
         parseVIResponseInformation(_receivedData);
     }
-    
+
 }
 
 const std::pair<int,unsigned char*>* DoIPClient::buildVehicleIdentificationRequest(){
-    
+
     std::pair <int,unsigned char*>* rareqWithLength= new std::pair<int,unsigned char*>();
     int rareqLength= 8;
     unsigned char * rareq= new unsigned char[rareqLength];
@@ -210,7 +210,7 @@ const std::pair<int,unsigned char*>* DoIPClient::buildVehicleIdentificationReque
     rareq[2]=0x00;  //Payload-Type
     rareq[3]=0x01;
     rareq[4]=0x00;  //Payload-Length
-    rareq[5]=0x00;  
+    rareq[5]=0x00;
     rareq[6]=0x00;
     rareq[7]=0x00;
 
@@ -218,13 +218,13 @@ const std::pair<int,unsigned char*>* DoIPClient::buildVehicleIdentificationReque
     rareqWithLength->second=rareq;
 
     return rareqWithLength;
-    
+
 }
 
 void DoIPClient::sendVehicleIdentificationRequest(const char* address){
-     
+
     int setAddressError = inet_aton(address,&(_serverAddr.sin_addr));
-    
+
     if(setAddressError != 0)
     {
         std::cout <<"Address set succesfully"<<std::endl;
@@ -233,18 +233,18 @@ void DoIPClient::sendVehicleIdentificationRequest(const char* address){
     {
         std::cout << "Could not set Address. Try again" << std::endl;
     }
-    
+
     int socketError = setsockopt(_sockFd_udp, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast) );
-         
+
     if(socketError == 0)
     {
         std::cout << "Broadcast Option set successfully" << std::endl;
     }
-      
+
     const std::pair <int,unsigned char*>* rareqWithLength=buildVehicleIdentificationRequest();
-    
+
     int sendError = sendto(_sockFd_udp, rareqWithLength->second,rareqWithLength->first, 0, (struct sockaddr *) &_serverAddr, sizeof(_serverAddr));
-    
+
     if(sendError > 0)
     {
         std::cout << "Sending Vehicle Identification Request" << std::endl;
@@ -275,15 +275,15 @@ int DoIPClient::getConnected() {
 }
 
 void DoIPClient::parseVIResponseInformation(unsigned char* data){
-    
+
     //VIN
     int j = 0;
     for(int i = 8; i <= 24; i++)
-    {      
+    {
         VINResult[j] = data[i];
         j++;
     }
-    
+
     //Logical Adress
     j = 0;
     for(int i = 25; i <= 26; i++)
@@ -291,7 +291,7 @@ void DoIPClient::parseVIResponseInformation(unsigned char* data){
         LogicalAddressResult[j] = data[i];
         j++;
     }
-      
+
     //EID
     j = 0;
     for(int i = 27; i <= 32; i++)
@@ -299,7 +299,7 @@ void DoIPClient::parseVIResponseInformation(unsigned char* data){
         EIDResult[j] = data[i];
         j++;
     }
-    
+
     //GID
     j = 0;
     for(int i = 33; i <= 38; i++)
@@ -307,10 +307,10 @@ void DoIPClient::parseVIResponseInformation(unsigned char* data){
         GIDResult[j] = data[i];
         j++;
     }
-    
+
     //FurtherActionRequest
     FurtherActionReqResult = data[39];
-    
+
 }
 
 void DoIPClient::displayVIResponseInformation()
@@ -322,7 +322,7 @@ void DoIPClient::displayVIResponseInformation()
         std::cout << (unsigned char)(int)VINResult[i];
     }
     std::cout << std::endl;
-    
+
     //output LogicalAddress
     std::cout << "LogicalAddress: ";
     for(int i = 0; i < 2; i++)
@@ -330,7 +330,7 @@ void DoIPClient::displayVIResponseInformation()
         printf("%02X", (int)LogicalAddressResult[i]);
     }
     std::cout << std::endl;
-    
+
     //output EID
     std::cout << "EID: ";
     for(int i = 0; i < 6; i++)
@@ -338,7 +338,7 @@ void DoIPClient::displayVIResponseInformation()
         printf("%02X", EIDResult[i]);
     }
     std::cout << std::endl;
-    
+
      //output GID
     std::cout << "GID: ";
     for(int i = 0; i < 6; i++)
@@ -346,10 +346,10 @@ void DoIPClient::displayVIResponseInformation()
         printf("%02X", (int)GIDResult[i]);
     }
     std::cout << std::endl;
-    
+
     //output FurtherActionRequest
     std::cout << "FurtherActionRequest: ";
     printf("%02X", (int)FurtherActionReqResult);
-    
+
     std::cout << std::endl;
 }

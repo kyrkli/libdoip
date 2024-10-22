@@ -10,11 +10,11 @@ SSL_CTX *create_context()
     const SSL_METHOD *method;
     SSL_CTX *ctx;
 
-    //These are the general-purpose version-flexible SSL/TLS methods. 
+    //These are the general-purpose version-flexible SSL/TLS methods.
     //The actual protocol version used will be negotiated to the highest version mutually supported by the client and the server.
     method = TLS_server_method();
 
-    //SSL_CTX_new() initializes the list of ciphers, the session cache setting, the callbacks, 
+    //SSL_CTX_new() initializes the list of ciphers, the session cache setting, the callbacks,
     //the keys and certificates and the options to their default values.
     ctx = SSL_CTX_new(method);
     if (!ctx) {
@@ -29,18 +29,18 @@ SSL_CTX *create_context()
 void configure_context_client_auth(SSL_CTX *ctx)
 {
     /* Set the key and cert */
-    if (SSL_CTX_use_certificate_file(ctx, "/home/kirill/Desktop/work/bthesis/libdoip/ca_keys/server-cert.pem", SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_certificate_file(ctx, "./ca_keys/server-cert.pem", SSL_FILETYPE_PEM) <= 0) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
 
-    if (SSL_CTX_use_PrivateKey_file(ctx, "/home/kirill/Desktop/work/bthesis/libdoip/ca_keys/server-key.pem", SSL_FILETYPE_PEM) <= 0 ) {
+    if (SSL_CTX_use_PrivateKey_file(ctx, "./ca_keys/server-key.pem", SSL_FILETYPE_PEM) <= 0 ) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
-    
+
     // Load CA certificate to verify client
-    if (SSL_CTX_load_verify_locations(ctx, "/home/kirill/Desktop/work/bthesis/libdoip/ca_keys/ca-cert.pem", nullptr) <= 0) {
+    if (SSL_CTX_load_verify_locations(ctx, "./ca_keys/ca-cert.pem", nullptr) <= 0) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
@@ -58,14 +58,14 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
             exit(EXIT_FAILURE);
     }
 
-    //SSL_new() creates a new SSL structure which is needed to hold the data for a TLS/SSL connection. 
-    //The new structure inherits the settings of the underlying context ctx: connection method, options, verification settings, timeout settings.    
+    //SSL_new() creates a new SSL structure which is needed to hold the data for a TLS/SSL connection.
+    //The new structure inherits the settings of the underlying context ctx: connection method, options, verification settings, timeout settings.
     SSL *ssl = SSL_new(ctx);
-    //SSL_set_fd() sets the file descriptor fd as the input/output facility for the TLS/SSL (encrypted) side of ssl. 
+    //SSL_set_fd() sets the file descriptor fd as the input/output facility for the TLS/SSL (encrypted) side of ssl.
     //fd will typically be the socket file descriptor of a network connection.
     SSL_set_fd(ssl, client_sock);
 
-    //SSL_accept() waits for a TLS/SSL client to initiate the TLS/SSL handshake. 
+    //SSL_accept() waits for a TLS/SSL client to initiate the TLS/SSL handshake.
     //The communication channel must already have been set and assigned to the ssl by setting an underlying BIO.
     if (SSL_accept(ssl) <= 0) {
         ERR_print_errors_fp(stderr);
@@ -76,7 +76,7 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
 }
 
 /*
- * Set up a tcp socket, so the socket is ready to accept a connection 
+ * Set up a tcp socket, so the socket is ready to accept a connection
  */
 void DoIPServer::setupTcpOrTlsSocket(bool isTls /*=false*/) {
     int *socket_ptr;
@@ -112,13 +112,13 @@ void DoIPServer::setupTcpOrTlsSocket(bool isTls /*=false*/) {
     if (listen(*socket_ptr, 5) < 0){
         perror("Unable to listen");
         exit(EXIT_FAILURE);
-    } 
+    }
 }
 
 /*
  *  Wait till a client attempts a connection and accepts it
  */
-std::unique_ptr<DoIPConnection> DoIPServer::waitForTcpConnection() {                                       
+std::unique_ptr<DoIPConnection> DoIPServer::waitForTcpConnection() {
     int client_sock = accept(server_socket_tcp, (struct sockaddr*) nullptr, nullptr);
     if (client_sock < 0) {
             perror("Unable to accept tcp client");
@@ -128,19 +128,19 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTcpConnection() {
 }
 
 void DoIPServer::setupUdpSocket() {
-    
+
     server_socket_udp = socket(AF_INET, SOCK_DGRAM, 0);
-    
+
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
     serverAddress.sin_port = htons(_ServerPortTcpUdp);
-    
+
     if(server_socket_udp < 0)
         std::cout << "Error setting up a udp socket" << std::endl;
-    
+
     //binds the socket to any IP Address and the Port Number 13400
-    bind(server_socket_udp, (struct sockaddr *)&serverAddress, sizeof(serverAddress)); 
-    
+    bind(server_socket_udp, (struct sockaddr *)&serverAddress, sizeof(serverAddress));
+
     //setting the IP Address for Multicast
     setMulticastGroup("224.0.0.2");
 }
@@ -165,15 +165,16 @@ void DoIPServer::closeUdpSocket() {
 /*
  * Receives a udp message and calls reactToReceivedUdpMessage method
  * @return      amount of bytes which were send back to client
- *              or -1 if error occurred     
+ *              or -1 if error occurred
  */
 int DoIPServer::receiveUdpMessage(){
-    
-    unsigned int length = sizeof(serverAddress);   
-    int readBytes = recvfrom(server_socket_udp, data, _MaxDataSize, 0, (struct sockaddr *) &serverAddress, &length);
-        
+
+    struct sockaddr_in sender;
+    socklen_t length = sizeof(serverAddress);
+    int readBytes = recvfrom(server_socket_udp, data, _MaxDataSize, 0, (struct sockaddr *) &sender, &length);
+
     int sentBytes = reactToReceivedUdpMessage(readBytes);
-    
+
     return sentBytes;
 }
 
@@ -181,10 +182,10 @@ int DoIPServer::receiveUdpMessage(){
 /*
  * Receives a udp message and determine how to process the message
  * @return      amount of bytes which were send back to client
- *              or -1 if error occurred     
+ *              or -1 if error occurred
  */
 int DoIPServer::reactToReceivedUdpMessage(int readedBytes) {
-        
+
     GenericHeaderAction action = parseGenericHeader(data, readedBytes);
 
     int sendedBytes;
@@ -200,7 +201,7 @@ int DoIPServer::reactToReceivedUdpMessage(int readedBytes) {
             message[8] = action.value;
             sendedBytes = sendUdpMessage(message, _GenericHeaderLength + _NACKLength);
 
-            if(action.value == _IncorrectPatternFormatCode || 
+            if(action.value == _IncorrectPatternFormatCode ||
                     action.value == _InvalidPayloadLengthCode) {
                 return -1;
             } else {
@@ -211,16 +212,16 @@ int DoIPServer::reactToReceivedUdpMessage(int readedBytes) {
 
         case PayloadType::VEHICLEIDENTREQUEST: {
             unsigned char* message = createVehicleIdentificationResponse(VIN, LogicalGatewayAddress, EID, GID, FurtherActionReq);
-            sendedBytes = sendUdpMessage(message, _GenericHeaderLength + _VIResponseLength);   
+            sendedBytes = sendUdpMessage(message, _GenericHeaderLength + _VIResponseLength);
 
             return sendedBytes;
         }
 
-        default: { 
+        default: {
             std::cerr << "not handled payload type occured in receiveUdpMessage()" << std::endl;
             return -1;
         }
-    }   
+    }
     return -1;
 }
 
@@ -228,33 +229,33 @@ int DoIPServer::sendUdpMessage(unsigned char* message, int messageLength)  { //s
     //if the server receives a message from a client, than the response should be send back to the client address and port
     clientAddress.sin_port = serverAddress.sin_port;
     clientAddress.sin_addr.s_addr = serverAddress.sin_addr.s_addr;
-    
+
     int result = sendto(server_socket_udp, message, messageLength, 0, (struct sockaddr *)&clientAddress, sizeof(clientAddress));
     return result;
 }
 
 void DoIPServer::setEIDdefault(){
-    
+
     int fd;
-    
+
     struct ifreq ifr;
     const char* iface = "ens33"; //eth0
     unsigned char* mac;
-    
+
     fd = socket(AF_INET, SOCK_DGRAM, 0);
-    
+
     ifr.ifr_addr.sa_family = AF_INET;
-    
+
     strncpy((char*)ifr.ifr_name, (const char*)iface, IFNAMSIZ-1);
-    
+
     ioctl(fd, SIOCGIFHWADDR, &ifr);
-    
+
     close(fd);
-    
+
     mac = (unsigned char *)ifr.ifr_hwaddr.sa_data;
-    
+
     //memcpy(mac, (unsigned char *)ifr.ifr_hwaddr.sa_data, 48);
-    
+
     for(int i = 0; i < 6; i++)
     {
         EID[i] = mac[i];
@@ -262,7 +263,7 @@ void DoIPServer::setEIDdefault(){
 }
 
 void DoIPServer::setVIN( std::string VINString){
-    
+
     VIN = VINString;
 }
 
@@ -303,26 +304,26 @@ void DoIPServer::setA_DoIP_Announce_Interval(int Interval){
 
 
 void DoIPServer::setMulticastGroup(const char* address) {
-    
+
     int loop = 1;
-    
+
     //set Option using the same Port for multiple Sockets
     int setPort = setsockopt(server_socket_udp, SOL_SOCKET, SO_REUSEADDR, &loop, sizeof(loop));
-    
+
     if(setPort < 0)
     {
         std::cout << "Setting Port Error" << std::endl;
     }
-    
-     
+
+
     struct ip_mreq mreq;
-    
+
     mreq.imr_multiaddr.s_addr = inet_addr(address);
     mreq.imr_interface.s_addr = htonl(INADDR_ANY);
-    
+
     //set Option to join Multicast Group
     int setGroup = setsockopt(server_socket_udp, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*) &mreq, sizeof(mreq));
-    
+
     if(setGroup < 0)
     {
         std::cout <<"Setting Address Error" << std::endl;
@@ -331,47 +332,47 @@ void DoIPServer::setMulticastGroup(const char* address) {
 
 
 int DoIPServer::sendVehicleAnnouncement() {
-    
+
     const char* address = "255.255.255.255";
-    
+
     //setting the destination port for the Announcement to 13401
     clientAddress.sin_port=htons(13401);
-    
+
     int setAddressError = inet_aton(address,&(clientAddress.sin_addr));
-    
-    
+
     if(setAddressError != 0)
     {
         std::cout <<"Broadcast Address set succesfully"<<std::endl;
     }
-    
+
     int socketError = setsockopt(server_socket_udp, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast) );
-         
-    if(socketError == 0)
-    {
+
+    if(socketError == 0) {
         std::cout << "Broadcast Option set successfully" << std::endl;
+    } else {
+        std::cout << "Failed setting broadcast option: " << strerror(errno) << std::endl;
+        return -1;
     }
-    
+
     int sendedmessage;
-    
+
     unsigned char* message = createVehicleIdentificationResponse(VIN, LogicalGatewayAddress, EID, GID, FurtherActionReq);
-    
+
     for(int i = 0; i < A_DoIP_Announce_Num; i++)
     {
-        
+
         sendedmessage = sendto(server_socket_udp, message, _GenericHeaderLength + _VIResponseLength, 0, (struct sockaddr *)&clientAddress, sizeof(clientAddress));
-        
         if(sendedmessage > 0)
         {
             std::cout<<"Sending Vehicle Announcement"<<std::endl;
         }
         else
         {
-            std::cout<<"Failed Sending Vehicle Announcement"<<std::endl;
-        }   
-        usleep(A_DoIP_Announce_Interval*1000);
-        
+            std::cout<<"Failed Sending Vehicle Announcement: "<< strerror(errno) << std::endl;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(A_DoIP_Announce_Interval));
+
     }
     return sendedmessage;
-    
+
 }

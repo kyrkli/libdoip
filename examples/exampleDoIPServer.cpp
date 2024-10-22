@@ -75,7 +75,7 @@ void listenUdp() {
     }
 }
 
-void handleClient(std::unique_ptr<DoIPConnection> &&new_conn){        
+void handleClient(std::unique_ptr<DoIPConnection> &&new_conn){
     //Lambdas for a specific connection
     auto ReceiveFromLibrary_l = [&new_conn](unsigned short address, unsigned char* data, int length)
     {

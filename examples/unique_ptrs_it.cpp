@@ -43,7 +43,7 @@ int main() {
     auto conn3 = std::make_unique<DoIPConnection>(3);
     auto conn4 = std::make_unique<DoIPConnection>(4);
     auto conn5 = std::make_unique<DoIPConnection>(5);
-    
+
     connections.push_back(std::move(conn1));
     connections.push_back(std::move(conn2));
     connections.push_back(std::move(conn3));
@@ -60,7 +60,7 @@ int main() {
 
     std::cout << "Iterator end()-2 :\t" << (*it_un2)->sock << std::endl;
     std::cout << "Iterator end()-1 :\t" << (*it_un1)->sock << std::endl;
-    
+
     std::cout << "Erasing first element." << std::endl;
     connections.erase(connections.begin());
 

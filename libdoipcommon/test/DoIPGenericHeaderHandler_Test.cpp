@@ -76,10 +76,10 @@ TEST_F(GenericHeaderTest, KnownPayloadType_VehicleIdentificationRequest) {
 	//change payload type
 	request[2] = 0x00;
 	request[3] = 0x01;
-	
+
 	//change payload length
 	request[7] = 0x00;
-	
+
 	GenericHeaderAction action = parseGenericHeader(request, 8);	//VehidleIdentificationRequest length only 8
 	ASSERT_EQ(action.type, PayloadType::VEHICLEIDENTREQUEST);
 }

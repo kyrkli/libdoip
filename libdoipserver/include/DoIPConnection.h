@@ -26,9 +26,9 @@ const unsigned long _MaxDataSize = 0xFFFFFF;
 class DoIPConnection {
 
 public:
-    DoIPConnection(int client_sock, unsigned short logicalGatewayAddress, SSL* ssl = nullptr): 
+    DoIPConnection(int client_sock, unsigned short logicalGatewayAddress, SSL* ssl = nullptr):
         client_sock(client_sock), logicalGatewayAddress(logicalGatewayAddress), ssl(ssl){ };
-    
+
     int receiveTcpOrTlsMessage();
     unsigned long receiveFixedNumberOfBytesFromTcpOrTls(unsigned long payloadLength, unsigned char *receivedData);
 
@@ -36,15 +36,15 @@ public:
     bool isSocketActive() { return client_sock != 0; };
 
     void triggerDisconnection();
-    
+
     void sendDiagnosticAck(unsigned short sourceAddress, bool ackType, unsigned char ackCode);
     int sendNegativeAck(unsigned char ackCode);
 
-    void setCallback(DiagnosticCallback dc, DiagnosticMessageNotification dmn, CloseConnectionCallback ccb);                       
-    void setGeneralInactivityTime(const uint16_t seconds);   
+    void setCallback(DiagnosticCallback dc, DiagnosticMessageNotification dmn, CloseConnectionCallback ccb);
+    void setGeneralInactivityTime(const uint16_t seconds);
 
 private:
-    
+
     int client_sock = 0;//tls or tcp
 
     AliveCheckTimer aliveCheckTimer;
@@ -54,15 +54,15 @@ private:
 
     unsigned char* routedClientAddress;
     unsigned short logicalGatewayAddress = 0x0000;
-    
+
     SSL *ssl = nullptr; //tls
-    
+
     void closeSocket(bool skip_shutdown = false);
 
     int reactOnReceivedTcpMessage(GenericHeaderAction action, unsigned long payloadLength, unsigned char *payload);
-    
+
     int sendMessage(unsigned char* message, int messageLenght);
-    
+
     void aliveCheckTimeout();
 
     int handle_SSL_read_error(int readBytes);
