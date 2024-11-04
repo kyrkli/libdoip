@@ -18,9 +18,8 @@ SSL_CTX *create_context()
     //the keys and certificates and the options to their default values.
     ctx = SSL_CTX_new(method);
     if (!ctx) {
-        perror("Unable to create SSL context");
         ERR_print_errors_fp(stderr);
-        exit(EXIT_FAILURE);
+        throw std::runtime_error("Unable to create SSL context");
     }
 
     return ctx;
@@ -31,18 +30,18 @@ void configure_context_client_auth(SSL_CTX *ctx)
     /* Set the key and cert */
     if (SSL_CTX_use_certificate_file(ctx, "./ca_keys/server-cert.pem", SSL_FILETYPE_PEM) <= 0) {
         ERR_print_errors_fp(stderr);
-        exit(EXIT_FAILURE);
+        throw std::runtime_error("Unable to use SSL certificate");
     }
 
     if (SSL_CTX_use_PrivateKey_file(ctx, "./ca_keys/server-key.pem", SSL_FILETYPE_PEM) <= 0 ) {
         ERR_print_errors_fp(stderr);
-        exit(EXIT_FAILURE);
+        throw std::runtime_error("Unable to use SSL private key");
     }
 
     // Load CA certificate to verify client
     if (SSL_CTX_load_verify_locations(ctx, "./ca_keys/ca-cert.pem", nullptr) <= 0) {
         ERR_print_errors_fp(stderr);
-        exit(EXIT_FAILURE);
+        throw std::runtime_error("Unable to load SSL ca certificate");
     }
 
     // Require client to present a certificate
@@ -53,10 +52,8 @@ void configure_context_client_auth(SSL_CTX *ctx)
 
 std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
     int client_sock = accept(server_socket_tls, (struct sockaddr*) nullptr, nullptr);
-    if (client_sock < 0) {
-            perror("Unable to accept tls client");
-            exit(EXIT_FAILURE);
-    }
+    if (client_sock < 0)
+        throw std::runtime_error("Unable to accept tls client");
 
     //SSL_new() creates a new SSL structure which is needed to hold the data for a TLS/SSL connection.
     //The new structure inherits the settings of the underlying context ctx: connection method, options, verification settings, timeout settings.
@@ -69,8 +66,7 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
     //The communication channel must already have been set and assigned to the ssl by setting an underlying BIO.
     if (SSL_accept(ssl) <= 0) {
         ERR_print_errors_fp(stderr);
-        std::cout << "error ssl_accept" << std::endl;
-        exit(EXIT_FAILURE);
+        throw std::runtime_error("Unable to accept ssl client");
     }
     return std::make_unique<DoIPConnection>(client_sock, LogicalGatewayAddress, ssl);
 }
@@ -91,8 +87,7 @@ void DoIPServer::setupTcpOrTlsSocket(bool isTls /*=false*/) {
 
     *socket_ptr = socket(AF_INET, SOCK_STREAM, 0);
     if (*socket_ptr < 0) {
-        perror("Unable to create socket");
-        exit(EXIT_FAILURE);
+        throw std::runtime_error("Unable to create socket");
     }
 
     serverAddress.sin_family = AF_INET;
@@ -103,16 +98,12 @@ void DoIPServer::setupTcpOrTlsSocket(bool isTls /*=false*/) {
         serverAddress.sin_port = htons(_ServerPortTcpUdp);
 
     //binds the socket to the address and port number
-    if (bind(*socket_ptr, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0) {
-        perror("Unable to bind");
-        exit(EXIT_FAILURE);
-    };
+    if (bind(*socket_ptr, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
+        throw std::runtime_error("Unable to bind");
 
     //waits till client approach to make connection
-    if (listen(*socket_ptr, 5) < 0){
-        perror("Unable to listen");
-        exit(EXIT_FAILURE);
-    }
+    if (listen(*socket_ptr, 5) < 0)
+        throw std::runtime_error("Unable to listen");
 }
 
 /*
@@ -120,10 +111,9 @@ void DoIPServer::setupTcpOrTlsSocket(bool isTls /*=false*/) {
  */
 std::unique_ptr<DoIPConnection> DoIPServer::waitForTcpConnection() {
     int client_sock = accept(server_socket_tcp, (struct sockaddr*) nullptr, nullptr);
-    if (client_sock < 0) {
-            perror("Unable to accept tcp client");
-            exit(EXIT_FAILURE);
-    }
+    if (client_sock < 0)
+        throw std::runtime_error("Unable to accept tcp client");
+
     return std::make_unique<DoIPConnection>(client_sock, LogicalGatewayAddress);
 }
 
