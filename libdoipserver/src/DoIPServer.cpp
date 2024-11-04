@@ -28,18 +28,18 @@ SSL_CTX *create_context()
 void configure_context_client_auth(SSL_CTX *ctx)
 {
     /* Set the key and cert */
-    if (SSL_CTX_use_certificate_file(ctx, "./ca_keys/server-cert.pem", SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_certificate_file(ctx, "../ca_keys/server-cert.pem", SSL_FILETYPE_PEM) <= 0) {
         ERR_print_errors_fp(stderr);
         throw std::runtime_error("Unable to use SSL certificate");
     }
 
-    if (SSL_CTX_use_PrivateKey_file(ctx, "./ca_keys/server-key.pem", SSL_FILETYPE_PEM) <= 0 ) {
+    if (SSL_CTX_use_PrivateKey_file(ctx, "../ca_keys/server-key.pem", SSL_FILETYPE_PEM) <= 0 ) {
         ERR_print_errors_fp(stderr);
         throw std::runtime_error("Unable to use SSL private key");
     }
 
     // Load CA certificate to verify client
-    if (SSL_CTX_load_verify_locations(ctx, "./ca_keys/ca-cert.pem", nullptr) <= 0) {
+    if (SSL_CTX_load_verify_locations(ctx, "../ca_keys/ca-cert.pem", nullptr) <= 0) {
         ERR_print_errors_fp(stderr);
         throw std::runtime_error("Unable to load SSL ca certificate");
     }
