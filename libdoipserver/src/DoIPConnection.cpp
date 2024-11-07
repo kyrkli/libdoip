@@ -3,29 +3,6 @@
 #include <iostream>
 #include <iomanip>
 
-int parseSSLerror(const SSL *ssl, int ret){
-    /*
-        The current thread's error queue must be empty before the TLS/SSL I/O
-        operation is attempted, or SSL_get_error() will not work reliably
-    */
-    ERR_print_errors_fp(stderr);
-    int err = SSL_get_error(ssl, ret);
-    switch(err){
-        case SSL_ERROR_ZERO_RETURN:
-            return SSL_ERROR_ZERO_RETURN;
-        case SSL_ERROR_SYSCALL:
-            std::cerr << "SSL Error: I/O error" << std::endl;
-            return SSL_ERROR_SYSCALL;
-        case SSL_ERROR_SSL:
-            std::cerr << "SSL Error: SSL protocol error" << std::endl;
-            return SSL_ERROR_SSL;
-        default:
-            std::cerr << "SSL Not considered error: " << err << std::endl;
-            return err;
-    }
-
-}
-
 /**
  * Closes the connection by closing the sockets
  */
@@ -38,39 +15,27 @@ void DoIPConnection::aliveCheckTimeout() {
 /*
  * Closes the socket for this server
  */
-void DoIPConnection::closeSocket(bool skip_shutdown /*=false*/) {
-    std::cout << "CLOSE SOCKET!!!!!!!!" << std::endl;
+void DoIPConnection::closeSocket() {
     if(isSocketActive()){
         //Closing TLS layer
         if(ssl){
-            /*
-                SSL_shutdown() should not be called if a previous fatal error has occurred
-                on a connection; i.e., if SSL_get_error(3) has returned SSL_ERROR_SYSCALL
-                or SSL_ERROR_SSL.
-                For that is the skip_shutdown responsible.
-            */
-            if(!skip_shutdown){
-                //read shutdown lifecycle, only shutdown if there isnt any error in the queue
-                int ret = SSL_shutdown(ssl);
+        
+            int ret = wolfSSL_shutdown(ssl);
 
-                if (ret == 0) {
-                    // First shutdown step: client needs to acknowledge shutdown
-                    std::cout << "Client hasn't acknowledged shutdown, retrying...\n";
-                    ret = SSL_shutdown(ssl);
-                }
-
-                if (ret == 1)
-                    std::cout << "SSL connection closed cleanly\n";
-                else {
-                    std::cerr << "SSL_shutdown returned " << ret << "\n";
-                    parseSSLerror(ssl, ret);
-                }
-
-            } else {
-                std::cout << "Skip shutdown" << std::endl;
+            if (ret == SSL_SHUTDOWN_NOT_DONE) {
+                // First shutdown step: client needs to acknowledge shutdown
+                std::cout << "Client hasn't acknowledged shutdown, retrying...\n";
+                ret = wolfSSL_shutdown(ssl);
             }
 
-            SSL_free(ssl);
+            if (ret == SSL_SUCCESS)
+                std::cout << "SSL connection closed cleanly\n";
+            else {
+                wolfSSL_ERR_print_errors_fp(stderr, wolfSSL_get_error(ssl, ret));
+                throw std::runtime_error("Failed to call wolfSSL shutdown.");
+            }
+
+            wolfSSL_free(ssl);
             ssl = nullptr;
         }
         //Closing TCP layer
@@ -80,20 +45,19 @@ void DoIPConnection::closeSocket(bool skip_shutdown /*=false*/) {
 }
 
 int DoIPConnection::handle_SSL_read_error(int readBytes){
-    int err = parseSSLerror(ssl, readBytes);
+    int err = wolfSSL_get_error(ssl, readBytes);
     switch (err)
     {
+    case SSL_ERROR_WANT_READ:
+    case SSL_ERROR_WANT_WRITE:
+        //when using non-blocking sockets
+        return err;
     case SSL_ERROR_ZERO_RETURN:
-        // The peer shut down the connection properly at the TLS layer
-        return 0;
-        break;
-    case SSL_ERROR_SYSCALL:
-    case SSL_ERROR_SSL:
-        closeSocket(true);
-        return -1;
+        //This caused by a clean (close notify alert) shutdown.
+        return readBytes;
     default:
-        std::cout << "Unexpected failure after SSL_read" << std::endl;
-        return -1;
+        wolfSSL_ERR_print_errors_fp(stderr, err);
+        throw std::runtime_error("Unexpected failure after wolfSSL_read.");
     }
 }
 
@@ -154,15 +118,18 @@ unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTcpOrTls(unsigned lon
     while(remainingPayload > 0) {
         int readBytes = 0;
 
-        SSL *s = ssl;
-        if(s)
-            readBytes = SSL_read(s, &receivedData[payloadPos], remainingPayload);
+        if(ssl)
+            readBytes = wolfSSL_read(ssl, &receivedData[payloadPos], remainingPayload);
         else
             readBytes = recv(client_sock, &receivedData[payloadPos], remainingPayload, 0);
 
         if(readBytes <= 0) {
-            if(ssl)
-                return handle_SSL_read_error(readBytes);
+            if(ssl){
+                int ret = handle_SSL_read_error(readBytes);
+                if(ret == SSL_ERROR_WANT_READ || ret == SSL_ERROR_WANT_WRITE)
+                    continue; //When using non-blocking sockets. The application needs to call wolfSSL_read() again. 
+                return ret;
+            }
             else
                 return payloadPos;
         }
@@ -253,8 +220,22 @@ int DoIPConnection::reactOnReceivedTcpMessage(GenericHeaderAction action, unsign
 
 void DoIPConnection::triggerDisconnection() {
     std::cout << "Application requested to disconnect Client from Server" << std::endl;
-    //closeSocket(); it wasnt commented
     close_connection();
+}
+
+int DoIPConnection::handle_SSL_write_error(int sentBytes){
+    int err = wolfSSL_get_error(ssl, sentBytes);
+    
+    switch (err)
+    {
+    case SSL_ERROR_WANT_READ:
+    case SSL_ERROR_WANT_WRITE:
+        //When using non-blocking sockets. The application needs to call wolfSSL_write() again.
+        return err;
+    default:
+        wolfSSL_ERR_print_errors_fp(stderr, err);
+        throw std::runtime_error("Unexpected failure after wolfSSL_write.");
+    }
 }
 
 /**
@@ -265,14 +246,14 @@ void DoIPConnection::triggerDisconnection() {
  *                          or -1 if error occurred
  */
 int DoIPConnection::sendMessage(unsigned char* message, int messageLength) {
-    if(ssl == nullptr)
+    if(!ssl)
         return write(client_sock, message, messageLength);
     else {
-        int sentBytes = SSL_write(ssl, message, messageLength);
+        int sentBytes = wolfSSL_write(ssl, message, messageLength);
         if (sentBytes <= 0) {
-                printf("Server closed connection\n");
-                parseSSLerror(ssl, sentBytes);
-                return -1;
+                int ret = handle_SSL_write_error(sentBytes);
+                if(ret == SSL_ERROR_WANT_READ || ret == SSL_ERROR_WANT_WRITE)
+                    nullptr;//TODO When using non-blocking sockets. The application needs to call wolfSSL_write() again.
             }
             return sentBytes;
         }

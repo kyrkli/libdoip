@@ -1,72 +1,80 @@
 #include "DoIPServer.h"
 
 #include <signal.h>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-#include <openssl/tls1.h>
 
-SSL_CTX *create_context()
+#include <wolfssl/wolfcrypt/settings.h>
+#include <wolfssl/wolfcrypt/random.h>
+#include <wolfssl/wolfcrypt/logging.h>
+#include <wolfssl/ssl.h>
+#include <wolfssl/wolfcrypt/error-crypt.h>
+
+WOLFSSL_CTX *create_context()
 {
-    const SSL_METHOD *method;
-    SSL_CTX *ctx;
-
+    WOLFSSL_METHOD *method;
+    WOLFSSL_CTX *ctx;
+    
     //These are the general-purpose version-flexible SSL/TLS methods.
     //The actual protocol version used will be negotiated to the highest version mutually supported by the client and the server.
-    method = TLS_server_method();
+    method = wolfSSLv23_server_method();
+    if (!method)
+        throw std::runtime_error("Failed to create wolfSSL method.");
 
     //SSL_CTX_new() initializes the list of ciphers, the session cache setting, the callbacks,
     //the keys and certificates and the options to their default values.
-    ctx = SSL_CTX_new(method);
-    if (!ctx) {
-        ERR_print_errors_fp(stderr);
-        throw std::runtime_error("Unable to create SSL context");
-    }
+    ctx = wolfSSL_CTX_new(method);
+    if (!ctx)
+        throw std::runtime_error("Failed to create wolfSSL contex.");
 
+    //requirements to the ISO13400-2:2019 TODO setmaxversion?
+    if(wolfSSL_CTX_SetMinVersion(ctx, WOLFSSL_TLSV1_2) != SSL_SUCCESS) //TODO clean up in case of the error?
+        throw std::runtime_error("Failed to set min version wolfSSL.");
+
+    
     return ctx;
 }
 
-void configure_context_client_auth(SSL_CTX *ctx)
+void configure_context_client_auth(WOLFSSL_CTX *ctx)
 {
     /* Set the key and cert */
-    if (SSL_CTX_use_certificate_file(ctx, "../ca_keys/server-cert.pem", SSL_FILETYPE_PEM) <= 0) {
-        ERR_print_errors_fp(stderr);
-        throw std::runtime_error("Unable to use SSL certificate");
-    }
+    if (wolfSSL_CTX_use_certificate_file(ctx, "../ca_keys/server-cert.pem", SSL_FILETYPE_PEM) != SSL_SUCCESS)
+        throw std::runtime_error("Failed to use wolfSSL certificate.");
 
-    if (SSL_CTX_use_PrivateKey_file(ctx, "../ca_keys/server-key.pem", SSL_FILETYPE_PEM) <= 0 ) {
-        ERR_print_errors_fp(stderr);
-        throw std::runtime_error("Unable to use SSL private key");
-    }
+    if (wolfSSL_CTX_use_PrivateKey_file(ctx, "../ca_keys/server-key.pem", SSL_FILETYPE_PEM) != SSL_SUCCESS)
+        throw std::runtime_error("Failed to use wolfSSL private key.");
 
     // Load CA certificate to verify client
-    if (SSL_CTX_load_verify_locations(ctx, "../ca_keys/ca-cert.pem", nullptr) <= 0) {
-        ERR_print_errors_fp(stderr);
-        throw std::runtime_error("Unable to load SSL ca certificate");
-    }
+    if (wolfSSL_CTX_load_verify_locations(ctx, "../ca_keys/ca-cert.pem", nullptr) != SSL_SUCCESS)  
+        throw std::runtime_error("Failed to load SSL ca certificate.");
 
     // Require client to present a certificate
-    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
-    // set a limit on the number of certificates between the end-entity and trust-anchor certificates.
-    SSL_CTX_set_verify_depth(ctx, 1);
+    wolfSSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
 }
 
 std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
+    int ret = 0;
+    
     int client_sock = accept(server_socket_tls, (struct sockaddr*) nullptr, nullptr);
     if (client_sock < 0)
-        throw std::runtime_error("Unable to accept tls client");
+        throw std::runtime_error("Failed to accept tls client.");
 
     //SSL_new() creates a new SSL structure which is needed to hold the data for a TLS/SSL connection.
     //The new structure inherits the settings of the underlying context ctx: connection method, options, verification settings, timeout settings.
-    SSL *ssl = SSL_new(ctx);
+    WOLFSSL *ssl = wolfSSL_new(ctx);
+    if (!ssl)
+        throw std::runtime_error("Failed to create a new WOLFSSL object using the wolfSSL_new() function.");
+
     //SSL_set_fd() sets the file descriptor fd as the input/output facility for the TLS/SSL (encrypted) side of ssl.
     //fd will typically be the socket file descriptor of a network connection.
-    SSL_set_fd(ssl, client_sock);
-
+    if(wolfSSL_set_fd(ssl, client_sock) != SSL_SUCCESS)
+        throw std::runtime_error("Failed to set wolfSSL file descriptor.");
+    
     //SSL_accept() waits for a TLS/SSL client to initiate the TLS/SSL handshake.
     //The communication channel must already have been set and assigned to the ssl by setting an underlying BIO.
-    if (SSL_accept(ssl) <= 0) {
-        ERR_print_errors_fp(stderr);
-        throw std::runtime_error("Unable to accept ssl client");
+    ret = wolfSSL_accept(ssl);
+    if (ret != SSL_SUCCESS)
+    {
+        wolfSSL_ERR_print_errors_fp(stderr, wolfSSL_get_error(ssl, ret));
+        throw std::runtime_error("Failed to accept wolfSSL client.");
     }
     return std::make_unique<DoIPConnection>(client_sock, LogicalGatewayAddress, ssl);
 }
@@ -77,6 +85,7 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
 void DoIPServer::setupTcpOrTlsSocket(bool isTls /*=false*/) {
     int *socket_ptr;
     if(isTls){
+        wolfSSL_Init();
         socket_ptr = &server_socket_tls;
         ctx = create_context();
         configure_context_client_auth(ctx); //server-cert.pem and server-key.pem
@@ -139,9 +148,10 @@ void DoIPServer::setupUdpSocket() {
  * Closes the socket for this server
  */
 void DoIPServer::closeTlsSocket() {
-    SSL_CTX_free(ctx);
+    CloseSocket(server_socket_tls);
+    wolfSSL_CTX_free(ctx);
+    wolfSSL_Cleanup();
     ctx = nullptr;
-    close(server_socket_tls);
 }
 
 void DoIPServer::closeTcpSocket() {

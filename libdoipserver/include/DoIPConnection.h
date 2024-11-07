@@ -16,8 +16,12 @@
 #include "RoutingActivationHandler.h"
 #include "DiagnosticMessageHandler.h"
 #include "AliveCheckTimer.h"
-#include <openssl/ssl.h>
-#include <openssl/err.h>
+
+#include <wolfssl/wolfcrypt/settings.h>
+#include <wolfssl/wolfcrypt/random.h>
+#include <wolfssl/wolfcrypt/logging.h>
+#include <wolfssl/ssl.h>
+#include <wolfssl/wolfcrypt/error-crypt.h>
 
 using CloseConnectionCallback = std::function<void()>;
 
@@ -26,7 +30,7 @@ const unsigned long _MaxDataSize = 0xFFFFFF;
 class DoIPConnection {
 
 public:
-    DoIPConnection(int client_sock, unsigned short logicalGatewayAddress, SSL* ssl = nullptr):
+    DoIPConnection(int client_sock, unsigned short logicalGatewayAddress, WOLFSSL* ssl = nullptr):
         client_sock(client_sock), logicalGatewayAddress(logicalGatewayAddress), ssl(ssl){ };
 
     int receiveTcpOrTlsMessage();
@@ -45,7 +49,7 @@ public:
 
 private:
 
-    int client_sock = 0;//tls or tcp
+    int client_sock = 0;//client socket for tls or tcp communication
 
     AliveCheckTimer aliveCheckTimer;
     DiagnosticCallback diag_callback;
@@ -55,9 +59,9 @@ private:
     unsigned char* routedClientAddress;
     unsigned short logicalGatewayAddress = 0x0000;
 
-    SSL *ssl = nullptr; //tls
+    WOLFSSL *ssl = nullptr;
 
-    void closeSocket(bool skip_shutdown = false);
+    void closeSocket();
 
     int reactOnReceivedTcpMessage(GenericHeaderAction action, unsigned long payloadLength, unsigned char *payload);
 
@@ -66,6 +70,7 @@ private:
     void aliveCheckTimeout();
 
     int handle_SSL_read_error(int readBytes);
+    int handle_SSL_write_error(int sentBytes);
 };
 
 #endif /* DOIPCONNECTION_H */

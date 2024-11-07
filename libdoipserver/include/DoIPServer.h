@@ -54,7 +54,7 @@ public:
     void setA_DoIP_Announce_Interval(int Interval); 
 
 private:
-    SSL_CTX *ctx = nullptr;
+    WOLFSSL_CTX *ctx = nullptr;
 
     int server_socket_tls;
     int server_socket_tcp;

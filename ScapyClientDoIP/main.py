@@ -36,10 +36,10 @@ def run_script(i):
 
 if __name__ == '__main__':
     num_runs = 5  # Number of times to run the script
-
-    with ProcessPoolExecutor() as executor:
-        futures = [executor.submit(run_script, i) for i in range(num_runs)]
+    connect_DoIP_TLS()
+    #with ProcessPoolExecutor() as executor:
+    #    futures = [executor.submit(run_script, i) for i in range(num_runs)]
 
         # Optional: wait for all futures to complete
-    for future in futures:
-        future.result()  # This will raise exceptions if any occurred in the threads
+    #for future in futures:
+    #    future.result()  # This will raise exceptions if any occurred in the threads
