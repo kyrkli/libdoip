@@ -100,12 +100,12 @@ void handleClient(std::unique_ptr<DoIPConnection> &&new_conn){
 /*
  * Check permantly if tcp or tls message was received
  */
-void listenTcpOrTls(const bool isTls = false) {
-    server.setupTcpOrTlsSocket(isTls);
+void listenTcpOrTls(const bool is_tls = false, const bool client_auth = false) {
+    server.setupTcpOrTlsSocket(is_tls, client_auth);
 
     while(true){
         std::unique_ptr<DoIPConnection> uniConnection;
-        if(isTls){
+        if(is_tls){
             std::cout << "Waiting for Tls Connection" << std::endl;
             uniConnection = server.waitForTlsConnection();
             std::cout << "A Tls Connection is found!" << std::endl;
@@ -138,8 +138,8 @@ int main() {
     ConfigureDoipServer();
     serverActive = true;
     doipReceiver.push_back(std::thread(&listenUdp));
-    doipReceiver.push_back(std::thread(&listenTcpOrTls, false));
-    doipReceiver.push_back(std::thread(&listenTcpOrTls, true));
+    doipReceiver.push_back(std::thread(&listenTcpOrTls, false, false));
+    doipReceiver.push_back(std::thread(&listenTcpOrTls, true, true));
     server.sendVehicleAnnouncement();
 
     for(auto& th : doipReceiver)

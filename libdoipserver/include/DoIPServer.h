@@ -33,7 +33,7 @@ public:
 
     std::unique_ptr<DoIPConnection> waitForTlsConnection();
 
-    void setupTcpOrTlsSocket(bool isTls = false);
+    void setupTcpOrTlsSocket(bool is_tls = false, bool client_auth = false);
     std::unique_ptr<DoIPConnection> waitForTcpConnection();
     void setupUdpSocket();
     int receiveUdpMessage();

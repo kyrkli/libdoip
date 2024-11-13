@@ -1,3 +1,5 @@
+#define DEBUG_WOLFSSL
+
 #include "DoIPServer.h"
 
 #include <signal.h>
@@ -7,6 +9,9 @@
 #include <wolfssl/wolfcrypt/logging.h>
 #include <wolfssl/ssl.h>
 #include <wolfssl/wolfcrypt/error-crypt.h>
+#include <wolfssl/wolfcrypt/logging.h>
+
+#include <string.h>
 
 WOLFSSL_CTX *create_context()
 {
@@ -29,11 +34,32 @@ WOLFSSL_CTX *create_context()
     if(wolfSSL_CTX_SetMinVersion(ctx, WOLFSSL_TLSV1_2) != SSL_SUCCESS) //TODO clean up in case of the error?
         throw std::runtime_error("Failed to set min version wolfSSL.");
 
+    /*
+    //DoIP requirements for cipher suit
+    const char* clistTLS1_2 = "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256:TLS_ECDHE_ECDSA_WITH_AES_128_CCM:TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8:TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256";
+    const char* clistTLS1_3 = "TLS_RSA_WITH_AES_128_GCM_SHA256:TLS_RSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256";
+    char clist[400];
+    strcat(clist, clistTLS1_2);
+    strcat(clist, ":");
+    strcat(clist, clistTLS1_3);
+    std::cout << "clist:" << clist << std::endl; 
+    if(wolfSSL_CTX_set_cipher_list(ctx, clist) != SSL_SUCCESS)
+        throw std::runtime_error("Failed to set cipher suite list.");
     
+    char ciphers[1000];
+    int ret = wolfSSL_get_ciphers(ciphers, (int)sizeof(ciphers));
+
+    if(ret == SSL_SUCCESS)
+        printf("get ciphers:%s\n", ciphers);
+    else if(ret == BAD_FUNC_ARG)
+         printf("BAD_FUNC_ARG\n");
+    else if(ret == BUFFER_E)
+        printf("BUFFER_E\n");
+    */
     return ctx;
 }
 
-void configure_context_client_auth(WOLFSSL_CTX *ctx)
+void configure_context(WOLFSSL_CTX *ctx, bool client_auth)
 {
     /* Set the key and cert */
     if (wolfSSL_CTX_use_certificate_file(ctx, "../ca_keys/server-cert.pem", SSL_FILETYPE_PEM) != SSL_SUCCESS)
@@ -41,13 +67,15 @@ void configure_context_client_auth(WOLFSSL_CTX *ctx)
 
     if (wolfSSL_CTX_use_PrivateKey_file(ctx, "../ca_keys/server-key.pem", SSL_FILETYPE_PEM) != SSL_SUCCESS)
         throw std::runtime_error("Failed to use wolfSSL private key.");
+    
+    if(client_auth){
+        // Load CA certificate to verify client
+        if (wolfSSL_CTX_load_verify_locations(ctx, "../ca_keys/ca-cert.pem", nullptr) != SSL_SUCCESS)  
+            throw std::runtime_error("Failed to load SSL ca certificate.");
 
-    // Load CA certificate to verify client
-    if (wolfSSL_CTX_load_verify_locations(ctx, "../ca_keys/ca-cert.pem", nullptr) != SSL_SUCCESS)  
-        throw std::runtime_error("Failed to load SSL ca certificate.");
-
-    // Require client to present a certificate
-    wolfSSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
+        // Require client to present a certificate
+        wolfSSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
+    }
 }
 
 std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
@@ -63,6 +91,17 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
     if (!ssl)
         throw std::runtime_error("Failed to create a new WOLFSSL object using the wolfSSL_new() function.");
 
+    /*
+    //DoIP requirements for cipher suit
+    const char *version = wolfSSL_get_version(ssl);
+
+    if(strcmp(version, "TLSv1.2") == 0){
+        std::cout << "GET VERSION TLSv1.2" << std::endl;
+    } else if(strcmp(version, "TLSv1.3") == 0){
+        std::cout << "GET VERSION TLSv1.3" << std::endl;
+    } else
+        throw std::runtime_error("Used unexpected TLS version.");
+    */
     //SSL_set_fd() sets the file descriptor fd as the input/output facility for the TLS/SSL (encrypted) side of ssl.
     //fd will typically be the socket file descriptor of a network connection.
     if(wolfSSL_set_fd(ssl, client_sock) != SSL_SUCCESS)
@@ -76,19 +115,39 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
         wolfSSL_ERR_print_errors_fp(stderr, wolfSSL_get_error(ssl, ret));
         throw std::runtime_error("Failed to accept wolfSSL client.");
     }
+    /*
+    //debugging
+    const char* cipherS = wolfSSL_get_cipher_name(ssl);
+    if(cipherS == NULL){
+        // There was not a cipher suite matched
+    } else {
+        // There was a cipher suite matched
+        printf("ciphers:%s\n", cipherS);
+    }
+
+
+    version = wolfSSL_get_version(ssl);
+
+    if(strcmp(version, "TLSv1.2") == 0){
+        std::cout << "AFTER GET VERSION TLSv1.2" << std::endl;
+    } else if(strcmp(version, "TLSv1.3") == 0){
+        std::cout << "AFTER GET VERSION TLSv1.3" << std::endl;
+    } else
+        throw std::runtime_error("Used unexpected TLS version.");
+    */
     return std::make_unique<DoIPConnection>(client_sock, LogicalGatewayAddress, ssl);
 }
 
 /*
  * Set up a tcp socket, so the socket is ready to accept a connection
  */
-void DoIPServer::setupTcpOrTlsSocket(bool isTls /*=false*/) {
+void DoIPServer::setupTcpOrTlsSocket(bool is_tls /*=false*/, bool auth_client /*=false*/) {
     int *socket_ptr;
-    if(isTls){
+    if(is_tls){
         wolfSSL_Init();
         socket_ptr = &server_socket_tls;
         ctx = create_context();
-        configure_context_client_auth(ctx); //server-cert.pem and server-key.pem
+        configure_context(ctx, auth_client);//server-cert.pem and server-key.pem
     }
     else {
         socket_ptr = &server_socket_tcp;
@@ -101,7 +160,7 @@ void DoIPServer::setupTcpOrTlsSocket(bool isTls /*=false*/) {
 
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
-    if(isTls)
+    if(is_tls)
         serverAddress.sin_port = htons(_ServerPortTLS);
     else
         serverAddress.sin_port = htons(_ServerPortTcpUdp);

@@ -6,6 +6,9 @@ from scapy.contrib.automotive.uds import UDS, UDS_RDBI
 
 from concurrent.futures import ProcessPoolExecutor
 
+from scapy.layers.tls.crypto.suites import TLS_AES_128_GCM_SHA256
+
+
 def connect_DoIP_TCP():
     socket = DoIPSocket("127.0.0.1")
     pkt = DoIP(payload_type=0x8001, source_address=0xe80, target_address=0x1000) / UDS() / UDS_RDBI(identifiers=[0x1000])
@@ -16,13 +19,35 @@ def connect_DoIP_TLS():
     # Create client-side SSL context
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
+    #context.set_ciphers("TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:"
+    #                    "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384:"
+    #                    "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256:"
+    #                    "TLS_ECDHE_ECDSA_WITH_AES_128_CCM:"
+    #                    "TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8:"
+    #                    "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256:"
+    #                    "TLS_AES_128_GCM_SHA256:"
+    #                    "TLS_AES_256_GCM_SHA384:"
+    #                    "TLS_CHACHA20_POLY1305_SHA256:"
+    #                    "TLS_ARS_128_CCM_SHA256"
+    #                    "TLS_AES_128_CCM_8_SHA256")
+
+    for cipher in context.get_ciphers():
+        print(cipher['name'])
+
+    context.maximum_version = ssl.TLSVersion.TLSv1_2
+
+    # Enable unsafe legacy renegotiation (not recommended in production)
+    context.options |= ssl.OP_LEGACY_SERVER_CONNECT
+
     # This disables hostname verification
     context.check_hostname = False
     # This disables server certificate validation entirely.
-    context.verify_mode = ssl.CERT_NONE
+    #context.verify_mode = ssl.CERT_NONE
 
     # Load client certificate and key required by the server
     context.load_cert_chain(certfile="../ca_keys/client-cert.pem", keyfile="../ca_keys/client-key.pem")
+
+    context.load_verify_locations(cafile="../ca_keys/ca-cert.pem")
 
     socket = DoIPSocket(ip="127.0.0.1", tls_port=4433, force_tls=True, context=context)
     pkt = DoIP(payload_type=0x8001, source_address=0xe80, target_address=0x1000) / UDS() / UDS_RDBI(identifiers=[0x1000])
