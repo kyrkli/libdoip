@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="4" failures="2" disabled="0" errors="0" time="0." timestamp="2024-07-31T10:35:54.871" name="AllTests">
+  <testsuite name="RoutingActivationTest" tests="4" failures="2" disabled="0" skipped="0" errors="0" time="0." timestamp="2024-07-31T10:35:54.871">
+    <testcase name="ValidAddressParsing" file="RoutingActivationHandler_Test.cpp" line="37" status="run" result="completed" time="0." timestamp="2024-07-31T10:35:54.871" classname="RoutingActivationTest" />
+    <testcase name="WrongAddressParsing" file="RoutingActivationHandler_Test.cpp" line="51" status="run" result="completed" time="0." timestamp="2024-07-31T10:35:54.871" classname="RoutingActivationTest" />
+    <testcase name="UnknownActivationType" file="RoutingActivationHandler_Test.cpp" line="62" status="run" result="completed" time="0." timestamp="2024-07-31T10:35:54.871" classname="RoutingActivationTest">
+      <failure message="RoutingActivationHandler_Test.cpp:66&#x0A;Expected equality of these values:&#x0A;  result&#x0A;    Which is: &apos;\0&apos;&#x0A;  0x06&#x0A;    Which is: 6&#x0A;" type=""><![CDATA[RoutingActivationHandler_Test.cpp:66
+Expected equality of these values:
+  result
+    Which is: '\0'
+  0x06
+    Which is: 6
+]]></failure>
+    </testcase>
+    <testcase name="ValidRequest" file="RoutingActivationHandler_Test.cpp" line="72" status="run" result="completed" time="0." timestamp="2024-07-31T10:35:54.871" classname="RoutingActivationTest">
+      <failure message="RoutingActivationHandler_Test.cpp:74&#x0A;Expected equality of these values:&#x0A;  result&#x0A;    Which is: &apos;\0&apos;&#x0A;  0x10&#x0A;    Which is: 16&#x0A;" type=""><![CDATA[RoutingActivationHandler_Test.cpp:74
+Expected equality of these values:
+  result
+    Which is: '\0'
+  0x10
+    Which is: 16
+]]></failure>
+    </testcase>
+  </testsuite>
+</testsuites>

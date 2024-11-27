@@ -1,0 +1,7 @@
+{
+  "C_Cpp.intelliSenseEngine": "default",
+  "files.associations": {
+    "esp_https_server.h": "c"
+  },
+  "idf.adapterTargetName": "esp32"
+}
