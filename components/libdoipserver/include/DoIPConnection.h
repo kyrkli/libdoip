@@ -25,7 +25,7 @@
 
 using CloseConnectionCallback = std::function<void()>;
 
-const unsigned long _MaxDataSize = 0xFFFFFF;
+const unsigned long _MaxUdpDataSize = 1520;
 
 class DoIPConnection {
 

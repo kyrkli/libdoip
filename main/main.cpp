@@ -22,12 +22,21 @@ extern "C" {
 #include "esp_tls.h"
 #include "sdkconfig.h"
 }
-//#include "DoIPServer.h"
+#include "DoIPServer.h"
+#include <iomanip>
+
 /* A simple example that demonstrates how to create GET and POST
  * handlers and start an HTTPS server.
 */
 
 static const char *TAG = "example";
+
+static const unsigned short LOGICAL_ADDRESS = 0x28;
+
+DoIPServer server;
+std::vector<std::thread> doipReceiver;
+bool serverActive = false;
+int connections_counter = 0;
 
 /* Event handler for catching system events */
 static void event_handler(void* arg, esp_event_base_t event_base,
@@ -142,6 +151,152 @@ static const httpd_uri_t root = {
     .handler   = root_get_handler
 };
 
+/**
+ * Is called when the doip library receives a diagnostic message.
+ * @param address   logical address of the ecu
+ * @param data      message which was received
+ * @param length    length of the message
+ */
+void ReceiveFromLibrary(const std::unique_ptr<DoIPConnection> &connection, const unsigned short target_address, const unsigned char* data, const int length) {
+    std::cout << "DoIP Message received with target address 0x" << std::hex << target_address << ": ";
+    for(int i = 0; i < length; i++) {
+        std::cout << std::hex << std::setw(2) << (int)data[i] << " ";
+    }
+    std::cout << std::endl;
+
+    if(length > 2 && data[0] == 0x22)  {
+        std::cout << "-> Send diagnostic message positive response" << std::endl;
+        unsigned char responseData[] = { 0x62, data[1], data[2], 0x01, 0x02, 0x03, 0x04};
+        connection->sendDiagnosticPayload(target_address, responseData, sizeof(responseData));
+    } else {
+        std::cout << "-> Send diagnostic message negative response" << std::endl;
+        unsigned char responseData[] = { 0x7F, data[0], 0x11};
+        connection->sendDiagnosticPayload(target_address, responseData, sizeof(responseData));
+    }
+}
+
+/**
+ * Will be called when the doip library receives a diagnostic message.
+ * The library notifies the application about the message.
+ * Checks if there is a ecu with the logical address
+ * @param targetAddress     logical address to the ecu
+ * @return                  If a positive or negative ACK should be send to the client
+ */
+bool DiagnosticMessageReceived(const std::unique_ptr<DoIPConnection> &connection, const unsigned short targetAddress) {
+    (void)targetAddress;
+    unsigned char ackCode;
+
+    std::cout << "Received Diagnostic message" << std::endl;
+
+    //send positiv ack
+    ackCode = 0x00;
+    std::cout << "-> Send positive diagnostic message ack" << std::endl;
+    connection->sendDiagnosticAck(LOGICAL_ADDRESS, true, ackCode);
+
+    return true;
+}
+
+/**
+ * Closes the connection of the server by ending the listener threads
+ */
+void CloseConnection() {
+    std::cout << "Connection closed." << std::endl;
+    --connections_counter;
+}
+
+/*
+ * Check permantly if udp message was received
+ */
+void listenUdp() {
+    server.setupUdpSocket();
+    server.sendVehicleAnnouncement();
+    while(serverActive) {
+        server.receiveUdpMessage();
+    }
+}
+
+void handleClient(std::unique_ptr<DoIPConnection> &&new_conn){
+    //Lambdas for a specific connection
+    auto ReceiveFromLibrary_l = [&new_conn](unsigned short address, unsigned char* data, int length)
+    {
+        ReceiveFromLibrary(new_conn, address, data, length);
+    };
+    auto DiagnosticMessageReceived_l = [&new_conn](unsigned short targetAddress) -> bool
+    {
+        return DiagnosticMessageReceived(new_conn, targetAddress);
+    };
+
+    new_conn->setCallback(ReceiveFromLibrary_l, DiagnosticMessageReceived_l, CloseConnection);
+    new_conn->setGeneralInactivityTime(50000);
+
+    while(new_conn->isSocketActive()) {
+        new_conn->receiveTcpOrTlsMessage();
+    }
+
+    //Dissconect the client from the application
+    new_conn->triggerDisconnection();
+}
+
+/*
+ * Check permantly if tcp or tls message was received
+ */
+void listenTcpOrTls(const bool is_tls = false, const bool client_auth = false) {
+    server.setupTcpOrTlsSocket(is_tls, client_auth);
+    
+    while(true){
+        std::unique_ptr<DoIPConnection> uniConnection;
+        if(is_tls){
+            std::cout << "Waiting for Tls Connection" << std::endl;
+            uniConnection = server.waitForTlsConnection();
+            std::cout << "A Tls Connection is found!" << std::endl;
+        }
+        else {
+            std::cout << "Waiting for Tcp Connection" << std::endl;
+            uniConnection = server.waitForTcpConnection();
+            std::cout << "A Tcp Connection is found!" << std::endl;
+        }
+        ++connections_counter;
+        std::thread(handleClient, std::move(uniConnection)).detach();
+    }
+}
+
+void listenTcpTls(void *arg) {
+    (void) arg;
+    listenTcpOrTls(true, true);
+}
+
+void ConfigureDoipServer() {
+    // VIN needs to have a fixed length of 17 bytes.
+    // Shorter VINs will be padded with '0'
+    server.setVIN("FOOBAR");
+    server.setLogicalGatewayAddress(LOGICAL_ADDRESS);
+    server.setGID(0);
+    server.setFAR(0);
+    server.setEID(0);
+
+    // doipserver->setA_DoIP_Announce_Num(tempNum);
+    // doipserver->setA_DoIP_Announce_Interval(tempInterval);
+
+}
+
+void start_doip_server(void){
+    if (serverActive) {
+        return;
+    }
+    ConfigureDoipServer();
+    serverActive = true;
+    doipReceiver.push_back(std::thread(&listenUdp));
+    doipReceiver.push_back(std::thread(&listenTcpOrTls, false, false));
+    TaskHandle_t tlsSrvHandle;
+    xTaskCreate(listenTcpTls, "TLSSRV", 8192, NULL, 1, &tlsSrvHandle);
+        
+    //server.sendVehicleAnnouncement();
+}
+
+void stop_doip_server(){
+
+}
+
 static httpd_handle_t start_webserver(void)
 {
     httpd_handle_t server = NULL;
@@ -185,6 +340,7 @@ static esp_err_t stop_webserver(httpd_handle_t server)
 static void disconnect_handler(void* arg, esp_event_base_t event_base,
                                int32_t event_id, void* event_data)
 {
+    /*
     httpd_handle_t* server = (httpd_handle_t*) arg;
     if (*server) {
         if (stop_webserver(*server) == ESP_OK) {
@@ -193,20 +349,25 @@ static void disconnect_handler(void* arg, esp_event_base_t event_base,
             ESP_LOGE(TAG, "Failed to stop https server");
         }
     }
+    */
+    stop_doip_server();
 }
 
 static void connect_handler(void* arg, esp_event_base_t event_base,
                             int32_t event_id, void* event_data)
 {
+    /*
     httpd_handle_t* server = (httpd_handle_t*) arg;
     if (*server == NULL) {
         *server = start_webserver();
     }
+    */
+    start_doip_server();
 }
 
 extern "C" void app_main(void)
 {
-    static httpd_handle_t server = NULL;
+    //static httpd_handle_t server = NULL;
 
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
@@ -217,8 +378,8 @@ extern "C" void app_main(void)
      */
 
 #ifdef CONFIG_EXAMPLE_CONNECT_WIFI
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, &server));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &disconnect_handler, &server));
+    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &disconnect_handler, NULL));
 #endif // CONFIG_EXAMPLE_CONNECT_WIFI
 #ifdef CONFIG_EXAMPLE_CONNECT_ETHERNET
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &connect_handler, &server));

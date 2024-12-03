@@ -5,6 +5,13 @@
 #include <signal.h>
 
 #include <wolfssl/wolfcrypt/settings.h>
+#ifndef WOLFSSL_ESPIDF
+    #error "Problem with wolfSSL user_settings."
+    #error "Check components/wolfssl/include"
+#endif
+#ifndef FP_MAX_BITS
+    #error "FP_MAX_BITS not defined"
+#endif
 #include <wolfssl/wolfcrypt/random.h>
 #include <wolfssl/wolfcrypt/logging.h>
 #include <wolfssl/ssl.h>
@@ -12,12 +19,44 @@
 #include <wolfssl/wolfcrypt/logging.h>
 
 #include <string.h>
-#include <filesystem>
+//#include <filesystem>
+#include <cstdio>
+
+//mac address
+extern "C" {
+#include "esp_system.h"
+#include "esp_mac.h"
+#include <stdio.h>
+#include "esp_log.h"
+}
+
+#define MAC_ADDR_SIZE 6
 
 const char* CERT_FILE_PATH = "../certs/server-cert.pem";
 const char* KEY_FILE_PATH = "../certs/server-key.pem";
 const char* CA_FILE_PATH = "../certs/ca-cert.pem";
 
+const long get_file_size(const char* path){
+    FILE* file = std::fopen(path, "rb");
+
+    if (file != nullptr) {
+        std::fseek(file, 0, SEEK_END);
+        long fileSize = std::ftell(file);
+        std::fclose(file);
+
+        if (fileSize != -1) {
+        std::cout << "File size of example.txt is: " << fileSize << " bytes" << std::endl;
+        return fileSize;
+        } else {
+        std::cerr << "Error getting file size." << std::endl;
+        }
+    } else {
+        std::cerr << "Error opening file." << std::endl;
+    }
+    return 0;
+}
+
+/*
 //alternatives are fstat or stat approaches
 const long get_file_size(const char* path){
     std::filesystem::path filePath = path;
@@ -29,6 +68,7 @@ const long get_file_size(const char* path){
     }
     else return size;
 }
+*/
 
 std::string load_private_key(const char* file_path, long* keySize) {
     *keySize = get_file_size(file_path);
@@ -117,11 +157,21 @@ void configure_context(WOLFSSL_CTX *ctx, bool client_auth)
     if (wolfSSL_CTX_use_certificate_file(ctx, "../ca_keys/server-cert.pem", SSL_FILETYPE_PEM) != SSL_SUCCESS)
         throw std::runtime_error("Failed to use wolfSSL certificate.");
     */
-    long key_size; //TODO is call by reference better?
-    std::string str = load_private_key(CERT_FILE_PATH, &key_size);
+    std::cout << "before wolfSSL_CTX_use_certificate_buffer" << std::endl;
+    
+    /*
+    long key_size = 0; //TODO is call by reference better?
+    std::string str = "a";
+    */
+
+    extern const unsigned char servercert_start[] asm("_binary_server_cert_pem_start");
+    extern const unsigned char servercert_end[]   asm("_binary_server_cert_pem_end");
+    long servercert_len = servercert_end - servercert_start;
+
+
     int ret = wolfSSL_CTX_use_certificate_buffer(ctx,
-            reinterpret_cast<const unsigned char*>(str.c_str()),
-            key_size,
+            servercert_start,
+            servercert_len,
             WOLFSSL_FILETYPE_PEM);
     if (ret != SSL_SUCCESS) {
         throw std::runtime_error("Error loading private key from buffer.");
@@ -131,11 +181,17 @@ void configure_context(WOLFSSL_CTX *ctx, bool client_auth)
     if (wolfSSL_CTX_use_PrivateKey_file(ctx, "../ca_keys/server-key.pem", SSL_FILETYPE_PEM) != SSL_SUCCESS)
         throw std::runtime_error("Failed to use wolfSSL private key.");
     */
+    std::cout << "before wolfSSL_CTX_use_PrivateKey_buffer" << std::endl;
+    
+    extern const unsigned char prvtkey_pem_start[] asm("_binary_server_key_pem_start");
+    extern const unsigned char prvtkey_pem_end[]   asm("_binary_server_key_pem_end");
+    long prvtkey_pem_len = prvtkey_pem_end - prvtkey_pem_start;
 
-    str = load_private_key(KEY_FILE_PATH, &key_size);
+
+    //str = load_private_key(KEY_FILE_PATH, &key_size);
     ret = wolfSSL_CTX_use_PrivateKey_buffer(ctx,
-            reinterpret_cast<const unsigned char*>(str.c_str()),
-            key_size,
+            prvtkey_pem_start,
+            prvtkey_pem_len,
             WOLFSSL_FILETYPE_PEM);
     if (ret != SSL_SUCCESS) {
         throw std::runtime_error("Error loading private key from buffer.");
@@ -147,16 +203,21 @@ void configure_context(WOLFSSL_CTX *ctx, bool client_auth)
         if (wolfSSL_CTX_load_verify_locations(ctx, "../ca_keys/ca-cert.pem", nullptr) != SSL_SUCCESS)  
             throw std::runtime_error("Failed to load SSL ca certificate.");
         */
+        std::cout << "before wolfSSL_CTX_load_verify_buffer" << std::endl;
+        
+        extern const unsigned char cacert_pem_start[] asm("_binary_ca_cert_pem_start");
+        extern const unsigned char cacert_pem_end[]   asm("_binary_ca_cert_pem_end");
+        long cacert_pem_len = cacert_pem_end - cacert_pem_start;
 
-        str = load_private_key(CA_FILE_PATH, &key_size);
         ret = wolfSSL_CTX_load_verify_buffer(ctx,
-                reinterpret_cast<const unsigned char*>(str.c_str()),
-                key_size,
+                cacert_pem_start,
+                cacert_pem_len,
                 WOLFSSL_FILETYPE_PEM);
         if (ret != SSL_SUCCESS) {
             throw std::runtime_error("Error loading private key from buffer.");
         }
 
+        std::cout << "before wolfSSL_CTX_set_verify" << std::endl;
         // Require client to present a certificate
         wolfSSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
     }
@@ -164,11 +225,12 @@ void configure_context(WOLFSSL_CTX *ctx, bool client_auth)
 
 std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
     int ret = 0;
-    
+    std::cout << "before accept TLS" << std::endl;
     int client_sock = accept(server_socket_tls, (struct sockaddr*) nullptr, nullptr);
     if (client_sock < 0)
         throw std::runtime_error("Failed to accept tls client.");
 
+    std::cout << "before wolfSSL_new" << std::endl;
     //SSL_new() creates a new SSL structure which is needed to hold the data for a TLS/SSL connection.
     //The new structure inherits the settings of the underlying context ctx: connection method, options, verification settings, timeout settings.
     WOLFSSL *ssl = wolfSSL_new(ctx);
@@ -186,23 +248,33 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
     } else
         throw std::runtime_error("Used unexpected TLS version.");
     */
+
     //SSL_set_fd() sets the file descriptor fd as the input/output facility for the TLS/SSL (encrypted) side of ssl.
     //fd will typically be the socket file descriptor of a network connection.
+    std::cout << "before wolfSSL_set_fd" << std::endl;
     if(wolfSSL_set_fd(ssl, client_sock) != SSL_SUCCESS)
         throw std::runtime_error("Failed to set wolfSSL file descriptor.");
+
+    //wolfSSL_ERR_print_errors_fp(stderr, wolfSSL_get_error(ssl, ret));
     
     //SSL_accept() waits for a TLS/SSL client to initiate the TLS/SSL handshake.
     //The communication channel must already have been set and assigned to the ssl by setting an underlying BIO.
+    std::cout << "before wolfSSL_accept" << std::endl;
     ret = wolfSSL_accept(ssl);
     if (ret != SSL_SUCCESS)
     {
         //wolfSSL_ERR_print_errors_fp(stderr, wolfSSL_get_error(ssl, ret));
-        unsigned long err = wolfSSL_ERR_get_error();
-        while (err != 0) {
+        
+        //unsigned long err = wolfSSL_ERR_get_error();
+        char buffer[80];
+        int err = wolfSSL_get_error(ssl, ret);
+        wolfSSL_ERR_error_string(err, buffer);
+        printf("err = %d, %s\n", err, buffer);
+
+        if (ret != SSL_SUCCESS) {
             char errorString[80];
             wolfSSL_ERR_error_string(err, errorString);
             fprintf(stderr, "WolfSSL error: %s\n", errorString);
-            err = wolfSSL_ERR_get_error();
         }
         throw std::runtime_error("Failed to accept wolfSSL client.");
     }
@@ -235,12 +307,16 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
 void DoIPServer::setupTcpOrTlsSocket(bool is_tls /*=false*/, bool auth_client /*=false*/) {
     int *socket_ptr;
     if(is_tls){
+        std::cout << "setup TLS socket" << std::endl;
         wolfSSL_Init();
         socket_ptr = &server_socket_tls;
         ctx = create_context();
+        std::cout << "before configure context" << std::endl;
         configure_context(ctx, auth_client);//server-cert.pem and server-key.pem
+        std::cout << "after configure context" << std::endl;
     }
     else {
+        std::cout << "setup TCP socket" << std::endl;
         socket_ptr = &server_socket_tcp;
     }
 
@@ -269,7 +345,9 @@ void DoIPServer::setupTcpOrTlsSocket(bool is_tls /*=false*/, bool auth_client /*
  *  Wait till a client attempts a connection and accepts it
  */
 std::unique_ptr<DoIPConnection> DoIPServer::waitForTcpConnection() {
+    std::cout << "before accept tcp" << std::endl;
     int client_sock = accept(server_socket_tcp, (struct sockaddr*) nullptr, nullptr);
+    std::cout << "after accept tcp" << std::endl;
     if (client_sock < 0)
         throw std::runtime_error("Unable to accept tcp client");
 
@@ -318,10 +396,10 @@ void DoIPServer::closeUdpSocket() {
  *              or -1 if error occurred
  */
 int DoIPServer::receiveUdpMessage(){
-
+    std::cout << "in receiveUdp Message" << std::endl;
     struct sockaddr_in sender;
     socklen_t length = sizeof(serverAddress);
-    int readBytes = recvfrom(server_socket_udp, data, _MaxDataSize, 0, (struct sockaddr *) &sender, &length);
+    int readBytes = recvfrom(server_socket_udp, udpData, _MaxUdpDataSize, 0, (struct sockaddr *) &sender, &length);
 
     int sentBytes = reactToReceivedUdpMessage(readBytes);
 
@@ -336,7 +414,7 @@ int DoIPServer::receiveUdpMessage(){
  */
 int DoIPServer::reactToReceivedUdpMessage(int readedBytes) {
 
-    GenericHeaderAction action = parseGenericHeader(data, readedBytes);
+    GenericHeaderAction action = parseGenericHeader(udpData, readedBytes);
 
     int sendedBytes;
     switch(action.type) {
@@ -385,7 +463,6 @@ int DoIPServer::sendUdpMessage(unsigned char* message, int messageLength)  { //s
 }
 
 void DoIPServer::setEIDdefault(){
-
     /*
     int fd;
 
@@ -412,7 +489,16 @@ void DoIPServer::setEIDdefault(){
         EID[i] = mac[i];
     }
     */
-    //esp_err_t err = esp_read_mac(EID, ESP_MAC_ETH);
+
+    // Retrieve the MAC address for WiFi into EID
+    esp_err_t err = esp_read_mac(EID, ESP_MAC_WIFI_STA);
+
+    if (err != ESP_OK) {
+        std::cout << "Failed to read MAC address:" << esp_err_to_name(err) << std::endl;
+
+        throw std::runtime_error("Failed to read MAC address");
+    }
+
 }
 
 void DoIPServer::setVIN( std::string VINString){
@@ -489,7 +575,9 @@ int DoIPServer::sendVehicleAnnouncement() {
     const char* address = "255.255.255.255";
 
     //setting the destination port for the Announcement to 13401
+    clientAddress.sin_family = AF_INET;
     clientAddress.sin_port=htons(13401);
+    clientAddress.sin_addr.s_addr = htonl(INADDR_BROADCAST);
 
     int setAddressError = inet_aton(address,&(clientAddress.sin_addr));
 
@@ -497,7 +585,7 @@ int DoIPServer::sendVehicleAnnouncement() {
     {
         std::cout <<"Broadcast Address set succesfully"<<std::endl;
     }
-
+    std::cout <<"server socket udp = "<< server_socket_udp << std::endl;
     int socketError = setsockopt(server_socket_udp, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast) );
 
     if(socketError == 0) {
@@ -513,7 +601,6 @@ int DoIPServer::sendVehicleAnnouncement() {
 
     for(int i = 0; i < A_DoIP_Announce_Num; i++)
     {
-
         sendedmessage = sendto(server_socket_udp, message, _GenericHeaderLength + _VIResponseLength, 0, (struct sockaddr *)&clientAddress, sizeof(clientAddress));
         if(sendedmessage > 0)
         {

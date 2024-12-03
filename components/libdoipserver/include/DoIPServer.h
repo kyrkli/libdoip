@@ -60,7 +60,7 @@ private:
     int server_socket_tcp;
     int server_socket_udp;
     struct sockaddr_in serverAddress, clientAddress;
-    unsigned char data[_MaxDataSize];
+    unsigned char udpData[_MaxUdpDataSize];
 
     std::string VIN = "00000000000000000";
     unsigned short LogicalGatewayAddress = 0x0000;
@@ -71,7 +71,7 @@ private:
     int A_DoIP_Announce_Num = 3;    //Default Value = 3
     int A_DoIP_Announce_Interval = 500; //Default Value = 500ms
 
-    int broadcast = 1;
+    const int broadcast = 1;
 
     int reactToReceivedUdpMessage(int readedBytes);
 
