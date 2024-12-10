@@ -157,12 +157,6 @@ void configure_context(WOLFSSL_CTX *ctx, bool client_auth)
     if (wolfSSL_CTX_use_certificate_file(ctx, "../ca_keys/server-cert.pem", SSL_FILETYPE_PEM) != SSL_SUCCESS)
         throw std::runtime_error("Failed to use wolfSSL certificate.");
     */
-    std::cout << "before wolfSSL_CTX_use_certificate_buffer" << std::endl;
-    
-    /*
-    long key_size = 0; //TODO is call by reference better?
-    std::string str = "a";
-    */
 
     extern const unsigned char servercert_start[] asm("_binary_server_cert_pem_start");
     extern const unsigned char servercert_end[]   asm("_binary_server_cert_pem_end");
@@ -181,14 +175,11 @@ void configure_context(WOLFSSL_CTX *ctx, bool client_auth)
     if (wolfSSL_CTX_use_PrivateKey_file(ctx, "../ca_keys/server-key.pem", SSL_FILETYPE_PEM) != SSL_SUCCESS)
         throw std::runtime_error("Failed to use wolfSSL private key.");
     */
-    std::cout << "before wolfSSL_CTX_use_PrivateKey_buffer" << std::endl;
-    
+
     extern const unsigned char prvtkey_pem_start[] asm("_binary_server_key_pem_start");
     extern const unsigned char prvtkey_pem_end[]   asm("_binary_server_key_pem_end");
     long prvtkey_pem_len = prvtkey_pem_end - prvtkey_pem_start;
 
-
-    //str = load_private_key(KEY_FILE_PATH, &key_size);
     ret = wolfSSL_CTX_use_PrivateKey_buffer(ctx,
             prvtkey_pem_start,
             prvtkey_pem_len,
@@ -203,7 +194,6 @@ void configure_context(WOLFSSL_CTX *ctx, bool client_auth)
         if (wolfSSL_CTX_load_verify_locations(ctx, "../ca_keys/ca-cert.pem", nullptr) != SSL_SUCCESS)  
             throw std::runtime_error("Failed to load SSL ca certificate.");
         */
-        std::cout << "before wolfSSL_CTX_load_verify_buffer" << std::endl;
         
         extern const unsigned char cacert_pem_start[] asm("_binary_ca_cert_pem_start");
         extern const unsigned char cacert_pem_end[]   asm("_binary_ca_cert_pem_end");
@@ -217,7 +207,6 @@ void configure_context(WOLFSSL_CTX *ctx, bool client_auth)
             throw std::runtime_error("Error loading private key from buffer.");
         }
 
-        std::cout << "before wolfSSL_CTX_set_verify" << std::endl;
         // Require client to present a certificate
         wolfSSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
     }
@@ -225,12 +214,11 @@ void configure_context(WOLFSSL_CTX *ctx, bool client_auth)
 
 std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
     int ret = 0;
-    std::cout << "before accept TLS" << std::endl;
+    
     int client_sock = accept(server_socket_tls, (struct sockaddr*) nullptr, nullptr);
     if (client_sock < 0)
         throw std::runtime_error("Failed to accept tls client.");
 
-    std::cout << "before wolfSSL_new" << std::endl;
     //SSL_new() creates a new SSL structure which is needed to hold the data for a TLS/SSL connection.
     //The new structure inherits the settings of the underlying context ctx: connection method, options, verification settings, timeout settings.
     WOLFSSL *ssl = wolfSSL_new(ctx);
@@ -251,7 +239,6 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
 
     //SSL_set_fd() sets the file descriptor fd as the input/output facility for the TLS/SSL (encrypted) side of ssl.
     //fd will typically be the socket file descriptor of a network connection.
-    std::cout << "before wolfSSL_set_fd" << std::endl;
     if(wolfSSL_set_fd(ssl, client_sock) != SSL_SUCCESS)
         throw std::runtime_error("Failed to set wolfSSL file descriptor.");
 
@@ -259,7 +246,6 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
     
     //SSL_accept() waits for a TLS/SSL client to initiate the TLS/SSL handshake.
     //The communication channel must already have been set and assigned to the ssl by setting an underlying BIO.
-    std::cout << "before wolfSSL_accept" << std::endl;
     ret = wolfSSL_accept(ssl);
     if (ret != SSL_SUCCESS)
     {
