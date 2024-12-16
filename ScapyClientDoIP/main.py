@@ -8,9 +8,10 @@ from concurrent.futures import ProcessPoolExecutor
 
 from scapy.layers.tls.crypto.suites import TLS_AES_128_GCM_SHA256
 
+ipaddress = "192.168.139.93"
 
 def connect_DoIP_TCP():
-    socket = DoIPSocket("127.0.0.1")
+    socket = DoIPSocket(ipaddress)
     pkt = DoIP(payload_type=0x8001, source_address=0xe80, target_address=0x1000) / UDS() / UDS_RDBI(identifiers=[0x1000])
     resp = socket.sr1(pkt, timeout=1)
     print("Received response:", resp)
@@ -31,8 +32,8 @@ def connect_DoIP_TLS():
     #                    "TLS_ARS_128_CCM_SHA256"
     #                    "TLS_AES_128_CCM_8_SHA256")
 
-    for cipher in context.get_ciphers():
-        print(cipher['name'])
+    #for cipher in context.get_ciphers():
+    #    print(cipher['name'])
 
     context.maximum_version = ssl.TLSVersion.TLSv1_2
 
@@ -49,7 +50,7 @@ def connect_DoIP_TLS():
 
     context.load_verify_locations(cafile="../ca_keys/ca-cert.pem")
 
-    socket = DoIPSocket(ip="127.0.0.1", tls_port=4433, force_tls=True, context=context)
+    socket = DoIPSocket(ip=ipaddress, tls_port=4433, force_tls=True, context=context)
     pkt = DoIP(payload_type=0x8001, source_address=0xe80, target_address=0x1000) / UDS() / UDS_RDBI(identifiers=[0x1000])
     rep = socket.sr1(pkt, timeout=1)
     print(repr(rep))
