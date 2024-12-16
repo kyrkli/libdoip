@@ -23,10 +23,8 @@ extern "C" {
 #include "sdkconfig.h"
 }
 #include "DoIPServer.h"
-#include <iomanip>
 #include "driver/gpio.h"
-
-static const char *TAG = "example";
+#include <iomanip>
 
 static const unsigned short LOGICAL_ADDRESS = 0x28;
 
@@ -94,7 +92,7 @@ void CloseConnection() {
 void listenUdp() {
     server.setupUdpSocket();
     server.sendVehicleAnnouncement();
-    while(serverActive) { //TODO Tasks must be implemented to never return (i.e. continuous loop).
+    while(true) {
         server.receiveUdpMessage();
     }
 }
@@ -140,6 +138,7 @@ void listenTcpOrTls(const bool is_tls = false, const bool client_auth = false) {
             std::cout << "A Tcp Connection is found!" << std::endl;
         }
         ++connections_counter;
+        
         std::thread(handleClient, std::move(uniConnection)).detach();
     }
 }
@@ -162,54 +161,60 @@ void start_doip_server(void){
     ConfigureDoipServer();
     serverActive = true;
    
-    /*
-    doipReceiver.push_back(std::thread(&listenUdp));
-    doipReceiver.push_back(std::thread(&listenTcpOrTls, false, false));
-    doipReceiver.push_back(std::thread(&listenTcpOrTls, true, true));
-    */
+    #ifdef _LINUX_
+    #ifndef _ESP32_
+        doipReceiver.push_back(std::thread(&listenUdp));
+        doipReceiver.push_back(std::thread(&listenTcpOrTls, false, false));
+        doipReceiver.push_back(std::thread(&listenTcpOrTls, true, true));
+    #endif //_ESP32_
+    #endif //_LINUX_
 
-    int ret_i = 0; /* interim return result */
-    
-    TaskHandle_t UDP_handle;
-    TaskHandle_t TCP_handle;
-    TaskHandle_t TLS_handle;
+    #ifdef _ESP32_
+    #ifndef _LINUX_
+        int ret_i = 0; /* interim return result */
+        
+        TaskHandle_t UDP_handle;
+        TaskHandle_t TCP_handle;
+        TaskHandle_t TLS_handle;
 
-    //Lambdas for converting listeners into the tasks
-    auto UDP_listener_task = [](void* arg)
-    {
-        (void) arg;
-        listenUdp();
-    };
+        //Lambdas for converting listeners into the tasks
+        auto UDP_listener_task = [](void* arg)
+        {
+            (void) arg;
+            listenUdp();
+        };
 
-    auto TCP_listener_task = [](void *arg)
-    {
-        (void) arg;
-        listenTcpOrTls();
-    };
+        auto TCP_listener_task = [](void *arg)
+        {
+            (void) arg;
+            listenTcpOrTls();
+        };
 
-    auto TLS_listener_task = [](void *arg)
-    {
-        (void) arg;
-        listenTcpOrTls(true, true);
-    };
+        auto TLS_listener_task = [](void *arg)
+        {
+            (void) arg;
+            listenTcpOrTls(true, true);
+        };
 
-    ret_i = xTaskCreate(UDP_listener_task, "UDP_listener", 8192, NULL, 8, &UDP_handle);
-    if (ret_i != pdPASS)
-        throw std::runtime_error("create thread UDP xTask failed");
-    
-    ret_i = xTaskCreate(TCP_listener_task, "TCP_listener", 8192, NULL, 8, &TCP_handle);
-    if (ret_i != pdPASS)
-        throw std::runtime_error("create thread TCP xTask failed");
+        ret_i = xTaskCreate(UDP_listener_task, "UDP_listener", 2048, NULL, 8, &UDP_handle);
+        if (ret_i != pdPASS)
+            throw std::runtime_error("create thread UDP xTask failed");
+        
+        ret_i = xTaskCreate(TCP_listener_task, "TCP_listener", 2048, NULL, 8, &TCP_handle); //260 bytes overhead
+        if (ret_i != pdPASS)
+            throw std::runtime_error("create thread TCP xTask failed");
 
-    ret_i = xTaskCreate(TLS_listener_task, "TLS_listener", 8192, NULL, 8, &TLS_handle);
-    if (ret_i != pdPASS)
-        throw std::runtime_error("create thread TLS xTask failed");
-    
+        ret_i = xTaskCreate(TLS_listener_task, "TLS_listener", 4096, NULL, 8, &TLS_handle); //500 bytes overhead
+        if (ret_i != pdPASS)
+            throw std::runtime_error("create thread TLS xTask failed");
+    #endif //_LINUX_
+    #endif //_ESP32_
 }
 
 void stop_doip_server(){
     serverActive = false;
 }
+
 
 static void disconnect_handler(void* arg, esp_event_base_t event_base,
                                int32_t event_id, void* event_data)
@@ -244,8 +249,8 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &disconnect_handler, NULL));
 #endif // CONFIG_EXAMPLE_CONNECT_WIFI
 #ifdef CONFIG_EXAMPLE_CONNECT_ETHERNET
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &connect_handler, &server));
-    ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ETHERNET_EVENT_DISCONNECTED, &disconnect_handler, &server));
+    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &connect_handler, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ETHERNET_EVENT_DISCONNECTED, &disconnect_handler, NULL));
 
     // Enable Power to PHY
     const gpio_num_t phy_power_pin = GPIO_NUM_12;
@@ -255,13 +260,6 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(gpio_config(&phy_power_conf));
     ESP_ERROR_CHECK(gpio_set_level(phy_power_pin, 1));
 #endif // CONFIG_EXAMPLE_CONNECT_ETHERNET
-
-    /*
-    esp_err_t ret = gpio_set_level(GPIO_NUM_12, 1);
-    if (ret != ESP_OK)
-        throw std::runtime_error("gpio_set_level 12 high failed");
-    */
-
     /* This helper function configures Wi-Fi or Ethernet, as selected in menuconfig.
      * Read "Establishing Wi-Fi or Ethernet Connection" section in
      * examples/protocols/README.md for more information about this function.

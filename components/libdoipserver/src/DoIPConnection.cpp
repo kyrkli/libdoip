@@ -19,7 +19,6 @@ void DoIPConnection::closeSocket() {
     if(isSocketActive()){
         //Closing TLS layer
         if(ssl){
-        
             int ret = wolfSSL_shutdown(ssl);
 
             if (ret == SSL_SHUTDOWN_NOT_DONE) {
@@ -27,18 +26,14 @@ void DoIPConnection::closeSocket() {
                 std::cout << "Client hasn't acknowledged shutdown, retrying...\n";
                 ret = wolfSSL_shutdown(ssl);
             }
-
+            
             if (ret == SSL_SUCCESS)
                 std::cout << "SSL connection closed cleanly\n";
             else {
-                //wolfSSL_ERR_print_errors_fp(stderr, wolfSSL_get_error(ssl, ret));
-                unsigned long err = wolfSSL_ERR_get_error();
-                while (err != 0) {
-                    char errorString[80];
-                    wolfSSL_ERR_error_string(err, errorString);
-                    fprintf(stderr, "WolfSSL error: %s\n", errorString);
-                    err = wolfSSL_ERR_get_error();
-                }
+                char errorString[80];
+                int err = wolfSSL_get_error(ssl, ret);
+                wolfSSL_ERR_error_string(err, errorString);
+                fprintf(stderr, "WolfSSL error: %d; %s\n", err, errorString);
                 throw std::runtime_error("Failed to call wolfSSL shutdown.");
             }
 
@@ -58,19 +53,14 @@ int DoIPConnection::handle_SSL_read_error(int readBytes){
     case SSL_ERROR_WANT_READ:
     case SSL_ERROR_WANT_WRITE:
         //when using non-blocking sockets
-        return err;
+        return readBytes;
     case SSL_ERROR_ZERO_RETURN:
         //This caused by a clean (close notify alert) shutdown.
         return readBytes;
     default:
-        //wolfSSL_ERR_print_errors_fp(stderr, err);
-        unsigned long err = wolfSSL_ERR_get_error();
-        while (err != 0) {
-            char errorString[80];
-            wolfSSL_ERR_error_string(err, errorString);
-            fprintf(stderr, "WolfSSL error: %s\n", errorString);
-            err = wolfSSL_ERR_get_error();
-        }
+        char errorString[80];
+        wolfSSL_ERR_error_string(err, errorString);
+        fprintf(stderr, "WolfSSL error: %d; %s\n", err, errorString);
         throw std::runtime_error("Unexpected failure after wolfSSL_read.");
     }
 }
@@ -106,7 +96,7 @@ int DoIPConnection::receiveTcpOrTlsMessage() {
         }
 
         int sentBytes = reactOnReceivedTcpMessage(doipHeaderAction, doipHeaderAction.payloadLength, payload);
-
+        printf("________________________________________________watermark = %d\n", uxTaskGetStackHighWaterMark(NULL));
         return sentBytes;
     } else {
         closeSocket();
@@ -131,8 +121,7 @@ unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTcpOrTls(unsigned lon
 
     while(remainingPayload > 0) {
         int readBytes = 0;
-
-        if(ssl)
+        if(ssl) 
             readBytes = wolfSSL_read(ssl, &receivedData[payloadPos], remainingPayload);
         else
             readBytes = recv(client_sock, &receivedData[payloadPos], remainingPayload, 0);
