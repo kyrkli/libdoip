@@ -22,10 +22,11 @@
 #include <wolfssl/wolfcrypt/logging.h>
 #include <wolfssl/ssl.h>
 #include <wolfssl/wolfcrypt/error-crypt.h>
+#include <wolfssl/wolfcrypt/logging.h>
 
 using CloseConnectionCallback = std::function<void()>;
 
-const unsigned long _MaxDataSize = 0xFFFFFF;
+const unsigned long _MaxUdpDataSize = 1520;
 
 class DoIPConnection {
 
