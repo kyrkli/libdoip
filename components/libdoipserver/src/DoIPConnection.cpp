@@ -236,14 +236,9 @@ int DoIPConnection::handle_SSL_write_error(int sentBytes){
         //When using non-blocking sockets. The application needs to call wolfSSL_write() again.
         return err;
     default:
-        //wolfSSL_ERR_print_errors_fp(stderr, err);
-        unsigned long err = wolfSSL_ERR_get_error();
-        while (err != 0) {
-            char errorString[80];
-            wolfSSL_ERR_error_string(err, errorString);
-            fprintf(stderr, "WolfSSL error: %s\n", errorString);
-            err = wolfSSL_ERR_get_error();
-        }
+        char errorString[80];
+        wolfSSL_ERR_error_string(err, errorString);
+        fprintf(stderr, "WolfSSL error: %d; %s\n", err, errorString);
         throw std::runtime_error("Unexpected failure after wolfSSL_write.");
     }
 }

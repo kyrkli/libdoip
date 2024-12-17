@@ -24,9 +24,13 @@
 
 #define MAC_ADDR_SIZE 6
 
-const char* CERT_FILE_PATH = "../certs/server-cert.pem";
-const char* KEY_FILE_PATH = "../certs/server-key.pem";
-const char* CA_FILE_PATH = "../certs/ca-cert.pem";
+#ifdef _LINUX_
+#ifndef _ESP32_
+    const char* CERT_FILE_PATH = "../certs/server-cert.pem";
+    const char* KEY_FILE_PATH = "../certs/server-key.pem";
+    const char* CA_FILE_PATH = "../certs/ca-cert.pem";
+#endif //_ESP32_
+#endif //_LINUX_
 
 WOLFSSL_CTX *create_context()
 {
