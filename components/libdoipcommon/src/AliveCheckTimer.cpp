@@ -1,4 +1,7 @@
 #include "AliveCheckTimer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "AliveCheckTimer.h"
 
 /**
  * Initialize and starts the alive check timer
@@ -21,6 +24,15 @@ void AliveCheckTimer::waitForResponse() {
             timeout = true;
             cb();
         }
+#ifdef __XTENSA__
+        vTaskDelay(1);
+#else
+    const struct timespec ten_milliseconds = {
+        .tv_sec = 0,
+        .tv_nsec = 10000000
+    }
+    nanosleep(&ten_milliseconds, NULL);
+#endif
     }
 }
 

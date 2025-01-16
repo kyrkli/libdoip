@@ -3,8 +3,7 @@
 #include <string.h>
 #include <cstdio>
 
-#ifdef _ESP32_
-#ifndef _LINUX_
+#if defined(__XTENSA__)
     #ifndef WOLFSSL_ESPIDF
         #error "Problem with wolfSSL user_settings."
         #error "Check components/wolfssl/include"
@@ -19,18 +18,15 @@
     #include <stdio.h>
     #include "esp_log.h"
     }
-#endif //_LINUX_
-#endif //_ESP32_
+#endif //defined(__XTENSA__)
 
-#define MAC_ADDR_SIZE 6
-
-#ifdef _LINUX_
-#ifndef _ESP32_
+#if defined(__linux__) && !defined(__XTENSA__)
     const char* CERT_FILE_PATH = "../certs/server-cert.pem";
     const char* KEY_FILE_PATH = "../certs/server-key.pem";
     const char* CA_FILE_PATH = "../certs/ca-cert.pem";
-#endif //_ESP32_
-#endif //_LINUX_
+#endif //defined(__linux__) && !defined(__XTENSA__)
+
+#define MAC_ADDR_SIZE 6
 
 WOLFSSL_CTX *create_context()
 {
@@ -78,8 +74,7 @@ WOLFSSL_CTX *create_context()
 
 void configure_context(WOLFSSL_CTX *ctx, bool client_auth)
 {
-    #ifdef _LINUX_
-    #ifndef _ESP32_
+    #if defined(__linux__) && !defined(__XTENSA__)
         //Set the server's certificate
         if (wolfSSL_CTX_use_certificate_file(ctx, CERT_FILE_PATH, SSL_FILETYPE_PEM) != SSL_SUCCESS)
             throw std::runtime_error("Failed to use wolfSSL certificate.");
@@ -96,14 +91,10 @@ void configure_context(WOLFSSL_CTX *ctx, bool client_auth)
             // Require client to present a certificate
             wolfSSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
         }
-    #endif //_ESP32_
-    #endif //_LINUX_
-
-    #ifdef _ESP32_
-    #ifndef _LINUX_
+    #elif defined(__XTENSA__)
         //Set the server's certificate
-        extern const unsigned char servercert_start[] asm("_binary_server_cert_pem_start");
-        extern const unsigned char servercert_end[]   asm("_binary_server_cert_pem_end");
+        extern const unsigned char servercert_start[]   asm("_binary_server_cert_pem_start");
+        extern const unsigned char servercert_end[]     asm("_binary_server_cert_pem_end");
         long servercert_len = servercert_end - servercert_start;
 
         int ret = wolfSSL_CTX_use_certificate_buffer(ctx,
@@ -142,8 +133,7 @@ void configure_context(WOLFSSL_CTX *ctx, bool client_auth)
             // Require client to present a certificate
             wolfSSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
         }
-    #endif //_LINUX_
-    #endif //_ESP32_
+    #endif //defined(__XTENSA__)
 }
 
 /*
@@ -338,8 +328,7 @@ int DoIPServer::sendUdpMessage(unsigned char* message, int messageLength)  { //s
 }
 
 void DoIPServer::setEIDdefault(){
-    #ifdef _LINUX_
-    #ifndef _ESP32_
+    #if defined(__linux__) && !defined(__XTENSA__)
         int fd;
 
         struct ifreq ifr;
@@ -364,18 +353,15 @@ void DoIPServer::setEIDdefault(){
         {
             EID[i] = mac[i];
         }
-    #endif //_ESP32_
-    #endif //_LINUX_
 
-    #ifdef _ESP32_
-    #ifndef _LINUX_
+    #elif defined(__XTENSA__)
         // Retrieve the MAC address for WiFi into EID
         esp_err_t err = esp_read_mac(EID, ESP_MAC_WIFI_STA);
 
         if (err != ESP_OK)
             throw std::runtime_error("Failed to read MAC address");
-    #endif //_LINUX_
-    #endif //_ESP32_
+    #endif //defined(__XTENSA__)
+
 
 }
 

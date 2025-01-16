@@ -29,7 +29,6 @@ extern "C" {
 static const unsigned short LOGICAL_ADDRESS = 0x28;
 
 DoIPServer server;
-std::vector<std::thread> doipReceiver;
 bool serverActive = false;
 int connections_counter = 0;
 
@@ -129,17 +128,39 @@ void listenTcpOrTls(const bool is_tls = false, const bool client_auth = false) {
         std::unique_ptr<DoIPConnection> uniConnection;
         if(is_tls){
             std::cout << "Waiting for Tls Connection" << std::endl;
+            ESP_LOGI("main.cpp", "Waiting for Tls Connection");
             uniConnection = server.waitForTlsConnection();
             std::cout << "A Tls Connection is found!" << std::endl;
+            ESP_LOGI("main.cpp", "Waiting for Tls Connection");
         }
         else {
             std::cout << "Waiting for Tcp Connection" << std::endl;
+            ESP_LOGI("main.cpp", "Waiting for Tcp Connection");
             uniConnection = server.waitForTcpConnection();
             std::cout << "A Tcp Connection is found!" << std::endl;
+            ESP_LOGI("main.cpp", "Waiting for Tcp Connection");
         }
         ++connections_counter;
         
-        std::thread(handleClient, std::move(uniConnection)).detach();
+        //std::thread(handleClient, std::move(uniConnection)).detach();
+
+        int ret_i = 0; // interim return result
+        auto handle_client_task = [](void *arg)
+        {   
+            std::unique_ptr<DoIPConnection> uniConnection(static_cast<DoIPConnection*>(arg));
+
+            handleClient(std::move(uniConnection));
+    
+            vTaskDelete(NULL);  //Task deletes itself
+        };
+        TaskHandle_t Client_handle;
+
+        auto rawConnection = uniConnection.release();
+        ret_i = xTaskCreate(handle_client_task, "handleClient", 2548, rawConnection, 4, &Client_handle); //500 bytes overhead
+        if (ret_i != pdPASS){
+            delete rawConnection; // Clean up in case of failure
+            throw std::runtime_error("create thread handleClient xTask failed");
+        }
     }
 }
 
@@ -161,54 +182,43 @@ void start_doip_server(void){
     ConfigureDoipServer();
     serverActive = true;
    
-    #ifdef _LINUX_
-    #ifndef _ESP32_
-        doipReceiver.push_back(std::thread(&listenUdp));
-        doipReceiver.push_back(std::thread(&listenTcpOrTls, false, false));
-        doipReceiver.push_back(std::thread(&listenTcpOrTls, true, true));
-    #endif //_ESP32_
-    #endif //_LINUX_
 
-    #ifdef _ESP32_
-    #ifndef _LINUX_
-        int ret_i = 0; /* interim return result */
-        
-        TaskHandle_t UDP_handle;
-        TaskHandle_t TCP_handle;
-        TaskHandle_t TLS_handle;
+    int ret_i = 0; /* interim return result */
+    
+    TaskHandle_t UDP_handle;
+    TaskHandle_t TCP_handle;
+    TaskHandle_t TLS_handle;
 
-        //Lambdas for converting listeners into the tasks
-        auto UDP_listener_task = [](void* arg)
-        {
-            (void) arg;
-            listenUdp();
-        };
+    //Lambdas for converting listeners into the tasks
+    auto UDP_listener_task = [](void* arg)
+    {
+        (void) arg;
+        listenUdp();
+    };
 
-        auto TCP_listener_task = [](void *arg)
-        {
-            (void) arg;
-            listenTcpOrTls();
-        };
+    auto TCP_listener_task = [](void *arg)
+    {
+        (void) arg;
+        listenTcpOrTls();
+    };
 
-        auto TLS_listener_task = [](void *arg)
-        {
-            (void) arg;
-            listenTcpOrTls(true, true);
-        };
+    auto TLS_listener_task = [](void *arg)
+    {
+        (void) arg;
+        listenTcpOrTls(true, false);
+    };
 
-        ret_i = xTaskCreate(UDP_listener_task, "UDP_listener", 2048, NULL, 8, &UDP_handle);
-        if (ret_i != pdPASS)
-            throw std::runtime_error("create thread UDP xTask failed");
-        
-        ret_i = xTaskCreate(TCP_listener_task, "TCP_listener", 2048, NULL, 8, &TCP_handle); //260 bytes overhead
-        if (ret_i != pdPASS)
-            throw std::runtime_error("create thread TCP xTask failed");
+    ret_i = xTaskCreate(UDP_listener_task, "UDP_listener", 2048, NULL, 5, &UDP_handle);
+    if (ret_i != pdPASS)
+        throw std::runtime_error("create thread UDP xTask failed");
+    
+    ret_i = xTaskCreate(TCP_listener_task, "TCP_listener", 2048, NULL, 5, &TCP_handle); //260 bytes overhead
+    if (ret_i != pdPASS)
+        throw std::runtime_error("create thread TCP xTask failed");
 
-        ret_i = xTaskCreate(TLS_listener_task, "TLS_listener", 4096, NULL, 8, &TLS_handle); //500 bytes overhead
-        if (ret_i != pdPASS)
-            throw std::runtime_error("create thread TLS xTask failed");
-    #endif //_LINUX_
-    #endif //_ESP32_
+    ret_i = xTaskCreate(TLS_listener_task, "TLS_listener", 4096, NULL, 5, &TLS_handle); //500 bytes overhead
+    if (ret_i != pdPASS)
+        throw std::runtime_error("create thread TLS xTask failed");
 }
 
 void stop_doip_server(){

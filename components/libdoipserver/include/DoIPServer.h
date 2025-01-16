@@ -21,8 +21,6 @@
 
 using CloseConnectionCallback = std::function<void()>;
 
-#define _ESP32_
-//#define _LINUX_
 
 const int _ServerPortTLS = 4433;
 const int _ServerPortTcpUdp = 13400;
