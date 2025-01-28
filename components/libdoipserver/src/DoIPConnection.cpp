@@ -33,13 +33,14 @@ void DoIPConnection::closeSocket() {
                 char errorString[80];
                 int err = wolfSSL_get_error(ssl, ret);
                 wolfSSL_ERR_error_string(err, errorString);
-                fprintf(stderr, "WolfSSL error: %d; %s\n", err, errorString);
+                printf("wolfSSL_shutdown error: %d; %s\n", err, errorString);
             }
 
             wolfSSL_free(ssl);
             ssl = nullptr;
         }
         //Closing TCP layer
+        std::cout << "TCP Layer closed cleanly\n";
         close(client_sock);
         client_sock = 0;
     }
@@ -59,7 +60,7 @@ int DoIPConnection::handle_SSL_read_error(int readBytes){
     default:
         char errorString[80];
         wolfSSL_ERR_error_string(err, errorString);
-        fprintf(stderr, "WolfSSL error: %d; %s\n", err, errorString);
+        printf("wolfSSL_read error: %d; %s\n", err, errorString);
         return err;
     }
 }
@@ -237,7 +238,7 @@ int DoIPConnection::handle_SSL_write_error(int sentBytes){
     default:
         char errorString[80];
         wolfSSL_ERR_error_string(err, errorString);
-        fprintf(stderr, "WolfSSL error: %d; %s\n", err, errorString);
+        printf("wolfSSL_write error: %d; %s\n", err, errorString);
         throw std::runtime_error("Unexpected failure after wolfSSL_write.");
     }
 }

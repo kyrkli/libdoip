@@ -128,17 +128,13 @@ void listenTcpOrTls(const bool is_tls = false, const bool client_auth = false) {
         std::unique_ptr<DoIPConnection> uniConnection;
         if(is_tls){
             std::cout << "Waiting for Tls Connection" << std::endl;
-            ESP_LOGI("main.cpp", "Waiting for Tls Connection");
             uniConnection = server.waitForTlsConnection();
             std::cout << "A Tls Connection is found!" << std::endl;
-            ESP_LOGI("main.cpp", "Waiting for Tls Connection");
         }
         else {
             std::cout << "Waiting for Tcp Connection" << std::endl;
-            ESP_LOGI("main.cpp", "Waiting for Tcp Connection");
             uniConnection = server.waitForTcpConnection();
             std::cout << "A Tcp Connection is found!" << std::endl;
-            ESP_LOGI("main.cpp", "Waiting for Tcp Connection");
         }
         ++connections_counter;
         
@@ -181,8 +177,6 @@ void ConfigureDoipServer() {
 void start_doip_server(void){
     ConfigureDoipServer();
     serverActive = true;
-   
-
     int ret_i = 0; /* interim return result */
     
     TaskHandle_t UDP_handle;
@@ -244,8 +238,6 @@ static void connect_handler(void* arg, esp_event_base_t event_base,
 
 extern "C" void app_main(void)
 {
-    //static httpd_handle_t server = NULL;
-
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
