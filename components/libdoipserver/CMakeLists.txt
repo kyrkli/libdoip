@@ -6,5 +6,3 @@ idf_component_register(
                     "certs/server-key.pem"
                     "certs/ca-cert.pem"
 )
-
-target_compile_options(${COMPONENT_LIB} PRIVATE -fexceptions)

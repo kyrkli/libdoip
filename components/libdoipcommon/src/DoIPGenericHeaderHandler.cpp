@@ -21,6 +21,7 @@ GenericHeaderAction parseGenericHeader(unsigned char* data, int dataLenght) {
         //Check Generic DoIP synchronization pattern
         if((int)(data[1] ^ (0xFF)) != (int)data[0]) {
             //Return Error, Protocol Version not correct
+            printf("Protocol version is not correct.\n");
             action.type = PayloadType::NEGATIVEACK;
             action.value = _IncorrectPatternFormatCode;
             action.payloadLength = 0;
@@ -56,6 +57,7 @@ GenericHeaderAction parseGenericHeader(unsigned char* data, int dataLenght) {
             messagePayloadType = PayloadType::DIAGNOSTICNEGATIVEACK;
         } else {
             //Unknown Payload Type --> Send Generic DoIP Header NACK
+            printf("The msg has an unknown payload type.\n");
             action.type = PayloadType::NEGATIVEACK;
             action.value = _UnknownPayloadTypeCode;
             return action;

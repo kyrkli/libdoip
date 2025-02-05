@@ -46,8 +46,9 @@ def connect_DoIP_TLS():
 
     context.load_verify_locations(cafile=cafile_path)
 
-    socket = DoIPSocket(ip=ipaddress, tls_port=4433, force_tls=True, context=context)
+    socket = DoIPSocket(ip=ipaddress, tls_port=3496, force_tls=True, context=context)
     pkt = DoIP(payload_type=0x8001, source_address=0xe80, target_address=0x1000) / UDS() / UDS_RDBI(identifiers=[0x1000])
+    pkt.show()
     rep = socket.sr1(pkt, timeout=1)
     print(repr(rep))
     socket.outs.unwrap()
@@ -119,7 +120,7 @@ def test_DoIP_TLS_unsupported_version(dut) -> None:
 
     context.load_verify_locations(cafile=cafile_path)
     try:
-        socket = DoIPSocket(ip=ipaddress, tls_port=4433, force_tls=True, context=context)
+        socket = DoIPSocket(ip=ipaddress, tls_port=3496, force_tls=True, context=context)
     except ssl.SSLError as e:
         if "NO_PROTOCOLS_AVAILABLE" in str(e):
             dut.expect(r'WolfSSL_accept error')
@@ -145,7 +146,7 @@ def test_DoIP_TLS_invalid_certificates(dut) -> None:
     context.load_verify_locations(cafile=invalid_cafile_path)
 
     try:
-        socket = DoIPSocket(ip=ipaddress, tls_port=4433, force_tls=True, context=context)
+        socket = DoIPSocket(ip=ipaddress, tls_port=3496, force_tls=True, context=context)
     except ssl.SSLError as e:
         if "CERTIFICATE_VERIFY_FAILED" in str(e):
             dut.expect(r'WolfSSL_accept error')
@@ -170,7 +171,7 @@ def test_DoIP_TLS_closed_at_tcp_level(dut) -> None:
 
     context.load_verify_locations(cafile=cafile_path)
 
-    with DoIPSocket(ip=ipaddress, tls_port=4433, force_tls=True, context=context) as socket:
+    with DoIPSocket(ip=ipaddress, tls_port=3496, force_tls=True, context=context) as socket:
         pkt = DoIP(payload_type=0x8001, source_address=0xe80, target_address=0x1000) / UDS() / UDS_RDBI(identifiers=[0x1000])
         rep = socket.sr1(pkt, timeout=1)
         print(repr(rep))
@@ -196,7 +197,7 @@ def test_DoIP_TLS_invalid_msg_length(dut) -> None:
 
     context.load_verify_locations(cafile=cafile_path)
 
-    socket = DoIPSocket(ip=ipaddress, tls_port=4433, force_tls=True, context=context)
+    socket = DoIPSocket(ip=ipaddress, tls_port=3496, force_tls=True, context=context)
     pkt = DoIP(payload_type=0x0005, source_address=0xe80, target_address=0x1000) / UDS() / UDS_RDBI(identifiers=[0x1000])
     rep = socket.sr1(pkt, timeout=1)
     print(repr(rep))
@@ -225,8 +226,9 @@ def test_DoIP_TLS_fuzz(dut, run) -> None:
 
     context.load_verify_locations(cafile=cafile_path)
 
-    socket = DoIPSocket(ip=ipaddress, tls_port=4433, force_tls=True, context=context)
-    pkt = fuzz(DoIP() / UDS() / UDS_RDBI())
+    socket = DoIPSocket(ip=ipaddress, tls_port=3496, force_tls=True, context=context)
+    pkt = fuzz(DoIP(protocol_version=3, inverse_version=252, payload_type=0x8001, source_address=0xe80)) / UDS() / UDS_RDBI(identifiers=[0x1000])
+    pkt.show()
     rep = socket.sr1(pkt, timeout=1)
     print(repr(rep))
     socket.outs.unwrap()
@@ -268,7 +270,7 @@ def test_DoIP_TLS_fuzzed_msgs(payload_type, source_address, target_address, iden
     
     print(f"payload = 0x{payload_type:X}; source = 0x{source_address:X}; target = 0x{target_address:X}; identifier = {identifier}")
 
-    socket = DoIPSocket(ip=ipaddress, tls_port=4433, force_tls=True, context=context)
+    socket = DoIPSocket(ip=ipaddress, tls_port=3496, force_tls=True, context=context)
     pkt = DoIP(payload_type=payload_type, 
                source_address=source_address, 
                target_address=target_address

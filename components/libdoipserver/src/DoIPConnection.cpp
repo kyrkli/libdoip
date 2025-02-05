@@ -96,7 +96,6 @@ int DoIPConnection::receiveTcpOrTlsMessage() {
         }
 
         int sentBytes = reactOnReceivedTcpMessage(doipHeaderAction, doipHeaderAction.payloadLength, payload);
-        printf("________________________________________________watermark = %d\n", uxTaskGetStackHighWaterMark(NULL));
         return sentBytes;
     } else {
         closeSocket();
@@ -278,7 +277,7 @@ void DoIPConnection::setGeneralInactivityTime(uint16_t seconds) {
     }
 }
 
-/*
+/**
  * Send diagnostic message payload to the client
  * @param sourceAddress   logical source address (i.e. address of this server)
  * @param value     received payload

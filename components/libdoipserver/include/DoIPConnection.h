@@ -9,6 +9,7 @@
 #include <string.h>
 #include <net/if.h>
 #include <unistd.h>
+
 #include "DoIPGenericHeaderHandler.h"
 #include "RoutingActivationHandler.h"
 #include "VehicleIdentificationHandler.h"
@@ -22,7 +23,6 @@
 #include <wolfssl/wolfcrypt/logging.h>
 #include <wolfssl/ssl.h>
 #include <wolfssl/wolfcrypt/error-crypt.h>
-#include <wolfssl/wolfcrypt/logging.h>
 
 using CloseConnectionCallback = std::function<void()>;
 

@@ -33,42 +33,19 @@ WOLFSSL_CTX *create_context()
     WOLFSSL_METHOD *method;
     WOLFSSL_CTX *ctx;
     
-    //The actual protocol version used will be negotiated to the highest version mutually supported by the client and the server.
+    //indicates that the application is a server and will support clients connecting with protocol version from SSL 3.0 - TLS 1.3.
     method = wolfSSLv23_server_method();
     if (!method)
         throw std::runtime_error("Failed to create wolfSSL method.");
 
-    //The list of ciphers, the session cache setting, the callbacks, the keys and certificates and the options are set to their default values.
     ctx = wolfSSL_CTX_new(method);
     if (!ctx)
         throw std::runtime_error("Failed to create wolfSSL contex.");
 
-    //Set minimum supported version of TLS to 1.2. Requirements to the ISO13400-2:2019 TODO setmaxversion?
-    if(wolfSSL_CTX_SetMinVersion(ctx, WOLFSSL_TLSV1_2) != SSL_SUCCESS) //TODO clean up in case of the error?
+    //Requirement to the ISO13400-2:2019
+    if(wolfSSL_CTX_SetMinVersion(ctx, WOLFSSL_TLSV1_2) != SSL_SUCCESS)
         throw std::runtime_error("Failed to set min version wolfSSL.");
 
-    /*
-    //DoIP requirements for cipher suit
-    const char* clistTLS1_2 = "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256:TLS_ECDHE_ECDSA_WITH_AES_128_CCM:TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8:TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256";
-    const char* clistTLS1_3 = "TLS_RSA_WITH_AES_128_GCM_SHA256:TLS_RSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256";
-    char clist[400];
-    strcat(clist, clistTLS1_2);
-    strcat(clist, ":");
-    strcat(clist, clistTLS1_3);
-    std::cout << "clist:" << clist << std::endl; 
-    if(wolfSSL_CTX_set_cipher_list(ctx, clist) != SSL_SUCCESS)
-        throw std::runtime_error("Failed to set cipher suite list.");
-    
-    char ciphers[1000];
-    int ret = wolfSSL_get_ciphers(ciphers, (int)sizeof(ciphers));
-
-    if(ret == SSL_SUCCESS)
-        printf("get ciphers:%s\n", ciphers);
-    else if(ret == BAD_FUNC_ARG)
-         printf("BAD_FUNC_ARG\n");
-    else if(ret == BUFFER_E)
-        printf("BUFFER_E\n");
-    */
     return ctx;
 }
 
@@ -148,24 +125,24 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
         if (client_sock < 0)
             throw std::runtime_error("Failed to accept tls client.");
 
-        //SSL_new() creates a new SSL structure which is needed to hold the data for a TLS/SSL connection.
+        //creates a new SSL session
         ssl = wolfSSL_new(ctx);
         if (!ssl)
             throw std::runtime_error("Failed to create a new WOLFSSL object using the wolfSSL_new() function.");
 
-        //SSL_set_fd() sets the file descriptor fd as the input/output facility for the TLS/SSL (encrypted) side of ssl.
+        //assigns a file descriptor (fd) as the input/output facility for the SSL connection
         if(wolfSSL_set_fd(ssl, client_sock) != SSL_SUCCESS)
             throw std::runtime_error("Failed to set wolfSSL file descriptor.");
         
-        //SSL_accept() waits for a TLS/SSL client to initiate the TLS/SSL handshake.
+        //waits for an SSL client to initiate the SSL/TLS handshake
         ret = wolfSSL_accept(ssl);
         if (ret != SSL_SUCCESS)
         {
             char buffer[80];
             int err = wolfSSL_get_error(ssl, ret);
-        
             wolfSSL_ERR_error_string(err, buffer);
             printf("WolfSSL_accept error = %d, %s\n", err, buffer);
+
             printf("Waiting for next TLS connection...\n");
         }
 
@@ -175,7 +152,7 @@ std::unique_ptr<DoIPConnection> DoIPServer::waitForTlsConnection() {
 }
 
 /*
- * Set up a tcp socket, so the socket is ready to accept a connection
+ * Set up a tcp or tls socket, so the socket is ready to accept a connection
  */
 void DoIPServer::setupTcpOrTlsSocket(bool is_tls /*=false*/, bool auth_client /*=false*/) {
     int *socket_ptr;
@@ -231,7 +208,7 @@ void DoIPServer::setupUdpSocket() {
     if(server_socket_udp < 0)
         throw std::runtime_error("Error setting up a udp socket");
 
-    //binds the socket to any IP Address and the Port Number 13400
+    //binds the socket to any IP Address and the Port Number
     bind(server_socket_udp, (struct sockaddr *)&serverAddress, sizeof(serverAddress));
 
     //setting the IP Address for Multicast
