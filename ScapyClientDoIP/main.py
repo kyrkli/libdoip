@@ -1,4 +1,6 @@
 import time
+import threading
+
 from scapy.all import *
 import socket as socketlib
 from scapy.contrib.automotive.doip import *
@@ -9,6 +11,7 @@ from concurrent.futures import ProcessPoolExecutor
 from scapy.layers.tls.crypto.suites import TLS_AES_128_GCM_SHA256
 
 #127.0.0.1
+#192.168.139.93
 ipaddress = "127.0.0.1"
 
 def connect_DoIP_TCP():
@@ -48,25 +51,37 @@ def connect_DoIP_TLS():
 
     # Load client certificate and key required by the server
     context.load_cert_chain(certfile="../certs/client-cert.pem", keyfile="../certs/client-key.pem")
-
     context.load_verify_locations(cafile="../certs/ca-cert.pem")
 
-    socket = DoIPSocket(ip=ipaddress, tls_port=4433, force_tls=True, context=context)
+    socket = DoIPSocket(ip=ipaddress, tls_port=3496, force_tls=True, context=context)
     pkt = DoIP(payload_type=0x8001, source_address=0xe80, target_address=0x1000) / UDS() / UDS_RDBI(identifiers=[0x1000])
     rep = socket.sr1(pkt, timeout=1)
     print(repr(rep))
     socket.outs.unwrap()
 
-def run_script(i):
-    print(f"Running script instance {i}")
+def my_function(thread_id):
+    print(f"Thread {thread_id} is starting.")
     connect_DoIP_TLS()
+    time.sleep(5)
+    connect_DoIP_TLS()
+    print(f"Thread {thread_id} is done.")
 
 if __name__ == '__main__':
-    num_runs = 5  # Number of times to run the script
-    connect_DoIP_TLS()
-    #with ProcessPoolExecutor() as executor:
-    #    futures = [executor.submit(run_script, i) for i in range(num_runs)]
+    # Create a list to hold the threads
+    threads = []
 
-        # Optional: wait for all futures to complete
-    #for future in futures:
-    #    future.result()  # This will raise exceptions if any occurred in the threads
+    # Number of threads to create
+    num_threads = 2
+
+    #Create and start multiple threads
+    for i in range(num_threads):
+        # Create a thread that will run `my_function` with the argument `i`
+        thread = threading.Thread(target=my_function, args=(i,))
+        threads.append(thread)
+        thread.start()
+
+    # Wait for all threads to complete
+    for thread in threads:
+        thread.join()
+
+    print("All threads have finished.")

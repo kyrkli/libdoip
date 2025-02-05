@@ -21,6 +21,7 @@ GenericHeaderAction parseGenericHeader(unsigned char* data, int dataLenght) {
         //Check Generic DoIP synchronization pattern
         if((int)(data[1] ^ (0xFF)) != (int)data[0]) {
             //Return Error, Protocol Version not correct
+            printf("Protocol version is not correct.\n");
             action.type = PayloadType::NEGATIVEACK;
             action.value = _IncorrectPatternFormatCode;
             action.payloadLength = 0;
@@ -56,6 +57,7 @@ GenericHeaderAction parseGenericHeader(unsigned char* data, int dataLenght) {
             messagePayloadType = PayloadType::DIAGNOSTICNEGATIVEACK;
         } else {
             //Unknown Payload Type --> Send Generic DoIP Header NACK
+            printf("The msg has an unknown payload type.\n");
             action.type = PayloadType::NEGATIVEACK;
             action.value = _UnknownPayloadTypeCode;
             return action;
@@ -65,6 +67,7 @@ GenericHeaderAction parseGenericHeader(unsigned char* data, int dataLenght) {
         switch(messagePayloadType) {
             case PayloadType::ROUTINGACTIVATIONREQUEST: {
                 if(payloadLength != 7 && payloadLength != 11) {
+                    printf("The msg with the received payload type ROUTINGACTIVATIONREQUEST has not allowed length\n");
                     action.type = PayloadType::NEGATIVEACK;
                     action.value = _InvalidPayloadLengthCode;
                     return action;
@@ -74,6 +77,7 @@ GenericHeaderAction parseGenericHeader(unsigned char* data, int dataLenght) {
 
             case PayloadType::ALIVECHECKRESPONSE: {
                 if(payloadLength != 2) {
+                    printf("The msg with the received payload type ALIVECHECKRESPONSE has not allowed length\n");
                     action.type = PayloadType::NEGATIVEACK;
                     action.value = _InvalidPayloadLengthCode;
                     return action;
@@ -83,6 +87,7 @@ GenericHeaderAction parseGenericHeader(unsigned char* data, int dataLenght) {
 
             case PayloadType::VEHICLEIDENTREQUEST: {
                 if(payloadLength != 0) {
+                    printf("The msg with the received payload type VEHICLEIDENTREQUEST has not allowed length\n");
                     action.type = PayloadType::NEGATIVEACK;
                     action.value = _InvalidPayloadLengthCode;
                     return action;
@@ -92,6 +97,7 @@ GenericHeaderAction parseGenericHeader(unsigned char* data, int dataLenght) {
 
             case PayloadType::VEHICLEIDENTRESPONSE:{
                 if(payloadLength != 32 && payloadLength != 33) {
+                    printf("The msg with the received payload type VEHICLEIDENTRESPONSE has not allowed length\n");
                     action.type = PayloadType::NEGATIVEACK;
                     action.value = _InvalidPayloadLengthCode;
                     return action;
@@ -101,6 +107,7 @@ GenericHeaderAction parseGenericHeader(unsigned char* data, int dataLenght) {
 
             case PayloadType::DIAGNOSTICMESSAGE: {
                 if(payloadLength <= 4) {
+                    printf("The msg with the received payload type DIAGNOSTICMESSAGE has not allowed length\n");
                     action.type = PayloadType::NEGATIVEACK;
                     action.value = _InvalidPayloadLengthCode;
                     return action;
@@ -110,6 +117,7 @@ GenericHeaderAction parseGenericHeader(unsigned char* data, int dataLenght) {
 
             case PayloadType::DIAGNOSTICPOSITIVEACK: {
                 if(payloadLength < 5) {
+                    printf("The msg with the received payload type DIAGNOSTICPOSITIVEACK has not allowed length\n");
                     action.type = PayloadType::NEGATIVEACK;
                     action.value = _InvalidPayloadLengthCode;
                 }
@@ -118,6 +126,7 @@ GenericHeaderAction parseGenericHeader(unsigned char* data, int dataLenght) {
 
             case PayloadType::DIAGNOSTICNEGATIVEACK: {
                 if(payloadLength < 5) {
+                    printf("The msg with the received payload type DIAGNOSTICNEGATIVEACK has not allowed length\n");
                     action.type = PayloadType::NEGATIVEACK;
                     action.value = _InvalidPayloadLengthCode;
                 }

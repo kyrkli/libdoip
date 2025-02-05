@@ -1,5 +1,10 @@
 #include "AliveCheckTimer.h"
 
+#if defined(__XTENSA__)
+    #include "freertos/FreeRTOS.h"
+    #include "freertos/task.h"
+#endif //defined(__XTENSA__)
+
 /**
  * Initialize and starts the alive check timer
  */
@@ -21,6 +26,15 @@ void AliveCheckTimer::waitForResponse() {
             timeout = true;
             cb();
         }
+        #if defined(__XTENSA__)
+            vTaskDelay(1);
+        #elif defined(__linux__) && !defined(__XTENSA__)
+            const struct timespec ten_milliseconds = {
+            .tv_sec = 0,
+            .tv_nsec = 10000000
+            };
+            nanosleep(&ten_milliseconds, NULL);
+        #endif
     }
 }
 

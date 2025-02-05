@@ -33,14 +33,14 @@ void DoIPConnection::closeSocket() {
                 char errorString[80];
                 int err = wolfSSL_get_error(ssl, ret);
                 wolfSSL_ERR_error_string(err, errorString);
-                fprintf(stderr, "WolfSSL error: %d; %s\n", err, errorString);
-                throw std::runtime_error("Failed to call wolfSSL shutdown.");
+                printf("wolfSSL_shutdown error: %d; %s\n", err, errorString);
             }
 
             wolfSSL_free(ssl);
             ssl = nullptr;
         }
         //Closing TCP layer
+        std::cout << "TCP Layer closed cleanly\n";
         close(client_sock);
         client_sock = 0;
     }
@@ -53,15 +53,15 @@ int DoIPConnection::handle_SSL_read_error(int readBytes){
     case SSL_ERROR_WANT_READ:
     case SSL_ERROR_WANT_WRITE:
         //when using non-blocking sockets
-        return readBytes;
+        return err;
     case SSL_ERROR_ZERO_RETURN:
         //This caused by a clean (close notify alert) shutdown.
         return readBytes;
     default:
         char errorString[80];
         wolfSSL_ERR_error_string(err, errorString);
-        fprintf(stderr, "WolfSSL error: %d; %s\n", err, errorString);
-        throw std::runtime_error("Unexpected failure after wolfSSL_read.");
+        printf("wolfSSL_read error: %d; %s\n", err, errorString);
+        return err;
     }
 }
 
@@ -129,7 +129,7 @@ unsigned long DoIPConnection::receiveFixedNumberOfBytesFromTcpOrTls(unsigned lon
             if(ssl){
                 int ret = handle_SSL_read_error(readBytes);
                 if(ret == SSL_ERROR_WANT_READ || ret == SSL_ERROR_WANT_WRITE)
-                    continue; //When using non-blocking sockets. The application needs to call wolfSSL_read() again. 
+                    continue; //When using non-blocking sockets. The application needs to call wolfSSL_read() again.
                 return ret;
             }
             else
@@ -237,7 +237,7 @@ int DoIPConnection::handle_SSL_write_error(int sentBytes){
     default:
         char errorString[80];
         wolfSSL_ERR_error_string(err, errorString);
-        fprintf(stderr, "WolfSSL error: %d; %s\n", err, errorString);
+        printf("wolfSSL_write error: %d; %s\n", err, errorString);
         throw std::runtime_error("Unexpected failure after wolfSSL_write.");
     }
 }
@@ -277,7 +277,7 @@ void DoIPConnection::setGeneralInactivityTime(uint16_t seconds) {
     }
 }
 
-/*
+/**
  * Send diagnostic message payload to the client
  * @param sourceAddress   logical source address (i.e. address of this server)
  * @param value     received payload
