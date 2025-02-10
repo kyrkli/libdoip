@@ -12,6 +12,7 @@ import threading
 import time
 import subprocess
 
+import random
 from hypothesis import given, settings, strategies as st
 from scapy.all import RandInt
 
@@ -209,7 +210,7 @@ def test_DoIP_TLS_invalid_msg_length(dut) -> None:
 
 
 @pytest.mark.esp32
-@pytest.mark.parametrize("run", range(5))  # Runs the test 5 times
+@pytest.mark.parametrize("run", range(5))
 def test_DoIP_TLS_fuzz(dut, run) -> None:
     print(f"Run #{run}")
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -223,11 +224,15 @@ def test_DoIP_TLS_fuzz(dut, run) -> None:
 
     # Load client certificate and key required by the server
     context.load_cert_chain(certfile=certfile_path, keyfile=keyfile_path)
-
     context.load_verify_locations(cafile=cafile_path)
 
     socket = DoIPSocket(ip=ipaddress, tls_port=3496, force_tls=True, context=context)
-    pkt = fuzz(DoIP(protocol_version=3, inverse_version=252, payload_type=0x8001, source_address=0xe80)) / UDS() / UDS_RDBI(identifiers=[0x1000])
+    
+    ranges = [(0x0000, 0x0008), (0x4001, 0x4004), (0x8001, 0x8003)]
+    min_value, max_value = random.choice(ranges)
+    rand_payload_type = random.randint(min_value, max_value)
+
+    pkt = fuzz(DoIP(protocol_version=3, inverse_version=252, payload_type=rand_payload_type, source_address=0xe80)) / UDS() / UDS_RDBI(identifiers=[0x1000])
     pkt.show()
     rep = socket.sr1(pkt, timeout=1)
     print(repr(rep))
@@ -235,49 +240,3 @@ def test_DoIP_TLS_fuzz(dut, run) -> None:
 
     dut.expect(r'SSL connection closed cleanly')
     dut.expect(r'TCP Layer closed cleanly')
-
-
-
-
-"""
-range1_payload = st.integers(min_value=0x0000, max_value=0x0008)
-range2_payload = st.integers(min_value=0x4001, max_value=0x4004)
-range3_payload = st.integers(min_value=0x8001, max_value=0x8003)
-
-combined_payload = st.one_of(range1_payload, range2_payload, range3_payload)
-
-@given(
-    payload_type=combined_payload,
-    source_address=st.integers(min_value=0, max_value=0xFFFF),
-    target_address=st.integers(min_value=0, max_value=0xFFFF),
-    identifier=st.lists(st.integers(min_value=0, max_value=0xFFFF), min_size=1, max_size=1),
-)
-@settings(max_examples=20)
-def test_DoIP_TLS_fuzzed_msgs(payload_type, source_address, target_address, identifier) -> None:
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-
-    context.minimum_version = ssl.TLSVersion.TLSv1_2
-
-    # Enable unsafe legacy renegotiation (not recommended in production)
-    context.options |= ssl.OP_LEGACY_SERVER_CONNECT
-
-    context.check_hostname = False
-
-    # Load client certificate and key required by the server
-    context.load_cert_chain(certfile=certfile_path, keyfile=keyfile_path)
-
-    context.load_verify_locations(cafile=cafile_path)
-    
-    print(f"payload = 0x{payload_type:X}; source = 0x{source_address:X}; target = 0x{target_address:X}; identifier = {identifier}")
-
-    socket = DoIPSocket(ip=ipaddress, tls_port=3496, force_tls=True, context=context)
-    pkt = DoIP(payload_type=payload_type, 
-               source_address=source_address, 
-               target_address=target_address
-               ) / UDS() / UDS_RDBI(identifiers=identifier)
-    
-    rep = socket.sr1(pkt, timeout=1)
-    print(repr(rep))
-    socket.outs.unwrap()
-
-"""
